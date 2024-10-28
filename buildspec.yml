@@ -7,7 +7,7 @@ phases:
       - aws --version
       - aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 722136401996.dkr.ecr.us-west-2.amazonaws.com
       - REPOSITORY_URI=722136401996.dkr.ecr.us-west-2.amazonaws.com/nodejs-server-demo
-      - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
+      - IMAGE_TAG=build-5ceafe7b-c4cf-407a-8fc8-8d91939cdca6
   build:
     commands:
       - echo Build started on `date`
