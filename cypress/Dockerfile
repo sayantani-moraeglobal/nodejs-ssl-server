@@ -13,4 +13,4 @@ COPY package.json /e2e/
 RUN npm install
 
 # Run the Cypress tests
-CMD ["npx", "cypress", "run"]
+CMD ["npm", "run", "test:headless"]
