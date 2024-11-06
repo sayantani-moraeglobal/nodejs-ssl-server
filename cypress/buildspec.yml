@@ -7,7 +7,6 @@ phases:
       - echo Installing Docker...
       - apt-get update -y
       - apt-get install docker.io
-      - npm install --save-dev cypress
     prebuild:
       commands:
       - echo Logging in to Amazon ECR...
