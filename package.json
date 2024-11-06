@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "Show you how to deploy nodejs server on AWS EC2 Ubuntu server with Free SSL and Nginx",
   "main": "app.js",
+  "devDependencies": {
+    "cypress": "^12.0.0"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "cypress open",
+    "test:headless": "cypress run"
   },
   "repository": {
     "type": "git",
