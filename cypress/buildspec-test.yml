@@ -2,8 +2,6 @@ version: 0.2
 
 phases:
   install:
-    runtime-versions:
-      nodejs: 18
     commands:
       # Install Docker
       - echo Installing Docker...
@@ -12,8 +10,8 @@ phases:
       - echo Installing dependencies...
       - npm install
       - npm install cypress --save-dev
-    prebuild:
-      commands:
+  prebuild:
+    commands:
       - echo Logging in to Amazon ECR...
       - aws --version
       - aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 722136401996.dkr.ecr.us-west-2.amazonaws.com
