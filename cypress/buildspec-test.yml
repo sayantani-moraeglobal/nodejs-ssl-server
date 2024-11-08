@@ -1,0 +1,38 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      # Install Docker
+      - echo Installing Docker...
+      - apt-get update -y
+      - apt-get install docker.io
+      - echo Installing dependencies...
+      - npm install
+      - npm install cypress --save-dev
+    prebuild:
+      commands:
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 722136401996.dkr.ecr.us-west-2.amazonaws.com
+      - REPOSITORY_URI=722136401996.dkr.ecr.us-west-2.amazonaws.com/cypress_docker_image_repo
+  build:
+    commands:
+      # Build the Cypress Docker image
+      - echo Building the Cypress Docker image...
+      - docker build -t cypress_docker_image_repo .
+      - docker tag cypress_docker_image_repo:latest 722136401996.dkr.ecr.us-west-2.amazonaws.com/cypress_docker_image_repo:latest
+      - echo Running Cypress tests...
+      - npx cypress run
+  post_build:
+    commands:
+      # Push Docker image to ECR
+      - echo Logging in to Amazon ECR...
+      - docker push 722136401996.dkr.ecr.us-west-2.amazonaws.com/cypress_docker_image_repo:latest
+      - echo Cypress tests completed.
+  artifacts:
+    files:
+    - '**/*'
+    discard-paths: yes
