@@ -3,10 +3,6 @@ version: 0.2
 phases:
   install:
     commands:
-      # Install Docker
-      - echo Installing Docker...
-      - apt-get update -y
-      - apt-get install docker.io
       - echo Installing dependencies...
       - npm install
       - npm install cypress --save-dev
