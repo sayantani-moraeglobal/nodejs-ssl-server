@@ -30,7 +30,3 @@ phases:
       - echo Logging in to Amazon ECR...
       - docker push 722136401996.dkr.ecr.us-west-2.amazonaws.com/cypress_docker_image_repo:latest
       - echo Cypress tests completed.
-  artifacts:
-    files:
-    - '**/*'
-    discard-paths: yes
