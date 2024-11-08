@@ -10,7 +10,7 @@ phases:
       - echo Installing dependencies...
       - npm install
       - npm install cypress --save-dev
-  prebuild:
+  pre_build:
     commands:
       - echo Logging in to Amazon ECR...
       - aws --version
