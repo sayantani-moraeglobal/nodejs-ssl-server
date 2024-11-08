@@ -4,15 +4,7 @@ phases:
   install:
     commands:
       - echo Installing dependencies...
-      -sudo yum install -y \
-        libgconf-2-4 \
-        libnss3 \
-        libxss1 \
-        libgdk-pixbuf2.0-0 \
-        libasound2 \
-        libxtst6 \
-        gtk3 \
-        xorg-x11-server-Xvfb
+      - dnf install -y xorg-x11-server-Xvfb gtk3-devel nss alsa-lib
       - npm install
       - npm install cypress --save-dev
   pre_build:
