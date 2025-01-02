@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const hostname = '127.0.0.1'; // Your server ip address
-const port = 3000;
+const port = 8080;
 
 const version = '1.0.0';
 
@@ -23,3 +23,8 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
     console.log(`[Version ${version}]: Server running at http://${hostname}:${port}/`);
 })
+
+// Define a health check endpoint
+app.use('/health', (req, res) => {
+  res.status(200).send('OK'); // Respond with a status code of 200 and 'OK'
+});
