@@ -4,11 +4,16 @@ phases:
   pre_build:
     commands:
       - echo Logging into ECR for all target regions...
+      - REGIONS="us-east-1 ap-southeast-1"
       - |
-        REGIONS="us-east-1 ap-southeast-1"
-        for REGION in "${REGIONS[@]}"; do
+        for REGION in $REGIONS; do
+          echo "Logging into ECR in $REGION..."
           aws ecr get-login-password --region $REGION | \
-          docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com
+            docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com
+          if [ $? -ne 0 ]; then
+            echo "❌ Docker login failed for $REGION"
+            exit 1
+          fi
         done
 
   build:
