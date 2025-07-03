@@ -1,0 +1,91 @@
+#WAF+CloudFront Template
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This is a template for WAF and CloudFront
+
+Parameters:
+  CMS3ALBDomainName:
+    Type: String
+    Description: This is the Domain name of the CMS3 Application Loadbalancer
+
+  
+Resources:
+  CMS3CloudFrontWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: CMS3CloudFrontWebACL
+      Scope: CLOUDFRONT
+      Description: This is a WebACL for the CloudFront
+      DefaultAction: 
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: CMSWebACLMetric
+      Rules:
+        - Name: AWS-AmazonIPReputationList
+          Priority: 0
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWS-AmazonIPReputationList
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+
+        - Name: AWS-CommonRuleSet
+          Priority: 1
+          OverrideAction: 
+            None: {}
+          VisibilityConfig: 
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWS-CommonRuleSet
+          Statement: 
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+
+        - Name: AWS-KnownBadInputsRuleSet
+          Priority: 2
+          OverrideAction: 
+            None: {}
+          VisibilityConfig: 
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWS-KnownBadInputsRuleSet
+          Statement: 
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+
+  CMS3CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - Id: 'CMS3ALBLoadBalancer'  
+            DomainName: !Ref CMS3ALBDomainName
+            OriginPath: ''
+            CustomOriginConfig:
+              HTTPPort: 8080
+              HTTPSPort: 443
+              OriginProtocolPolicy: 'http-only'  
+        Enabled: 'true'
+        DefaultCacheBehavior:
+          TargetOriginId: 'CMS3ALBLoadBalancer'
+          ViewerProtocolPolicy: 'redirect-to-https' # Force HTTPS for clients connecting to CloudFront
+          ForwardedValues:
+            QueryString: 'false'
+            Cookies:
+              Forward: none
+        WebACLId: !GetAtt CMS3CloudFrontWebACL.Arn
+        ViewerCertificate:
+          AcmCertificateArn: arn:aws:acm:us-east-1:722136401996:certificate/44fa3ab7-f45f-493c-9be0-20936f308f26
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        PriceClass: PriceClass_100
+
