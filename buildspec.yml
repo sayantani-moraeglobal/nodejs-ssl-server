@@ -1,52 +1,68 @@
 version: 0.2
 
-env:
-  variables:
-    REGIONS: "us-east-1 ap-south-1"
-
 phases:
   install:
     runtime-versions:
       docker: 18
     commands:
-      - echo Installing AWS CLI if missing...
-      - pip install --upgrade awscli
+      - echo Logging into ECR for all target regions...
+      - |
+        REGIONS=(us-east-1 ap-southeast-1)
+        for REGION in "${REGIONS[@]}"; do
+          aws ecr get-login-password --region $REGION | \
+          docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com
+        done
 
   build:
     commands:
-      - echo "Deploying to regions: $REGIONS"
+      - echo Building Docker image...
+      - docker build -t nodejs-app .
+
+      - echo Tagging and pushing Docker images to ECR in all regions...
       - |
-        for REGION in $REGIONS; do
-          echo "------------------------------"
-          echo "Deploying Network Stack to $REGION"
-          echo "------------------------------"
-          aws cloudformation deploy \
-            --template-file infra/vpc_stack.yaml \
-            --stack-name vpc-stack-$REGION \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --region $REGION
-
-          echo "Deploying ALB + WAF Stack to $REGION"
-          aws cloudformation deploy \
-            --template-file infra/alb_stack.yaml \
-            --stack-name alb-stack-$REGION \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --region $REGION
-
-          echo "Deploying ECS Stack to $REGION"
-          aws cloudformation deploy \
-            --template-file infra/ecs_stack.yaml \
-            --stack-name ecs-stack-$REGION \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --region $REGION
-
-          # Optional: deploy CloudFront only once in us-east-1
-          if [ "$REGION" = "us-east-1" ]; then
-            echo "Deploying CloudFront Stack in $REGION"
-            aws cloudformation deploy \
-              --template-file infra/waf_cloudfront_stack.yaml \
-              --stack-name waf-cloudfront-stack \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --region $REGION
-          fi
+        for REGION in "${REGIONS[@]}"; do
+          IMAGE_URI="722136401996.dkr.ecr.$REGION.amazonaws.com/example-nodejs:latest"
+          docker tag example-nodejs:latest $IMAGE_URI
+          docker push $IMAGE_URI
         done
+
+      - echo Deploying CloudFormation stacks in all regions...
+      - |
+        for REGION in "${REGIONS[@]}"; do
+          echo "Deploying Network Stack in $REGION..."
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name vpc-stack-$REGION \
+            --template-file infra/vpc_template.yaml \
+            --capabilities CAPABILITY_NAMED_IAM
+
+          echo "Deploying ECS Stack in $REGION..."
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name ecs-stack-$REGION \
+            --template-file infra/ecs_stack.yaml \
+            --parameter-overrides \
+              ImageUri=722136401996.dkr.ecr.$REGION.amazonaws.com/example-nodejs:latest \
+            --capabilities CAPABILITY_NAMED_IAM
+
+          echo "Deploying ALB Stack in $REGION..."
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name alb-stack-$REGION \
+            --template-file infra/alb_stack.yaml \
+            --capabilities CAPABILITY_NAMED_IAM
+
+          echo "Deploying CloudFront Stack globally..."
+          if [ "$REGION" == "us-east-1" ]; then
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name waf-cloudfront-stack \
+              --template-file infra/waf_cloudfront_stack.yaml \
+              --capabilities CAPABILITY_NAMED_IAM
+          fi
+
+        done
+
+artifacts:
+  files:
+    - '**/*'
