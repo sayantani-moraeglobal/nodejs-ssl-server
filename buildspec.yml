@@ -5,7 +5,7 @@ phases:
     commands:
       - echo Logging into ECR for all target regions...
       - |
-        REGIONS=(us-east-1 ap-southeast-1)
+        REGIONS="us-east-1 ap-southeast-1"
         for REGION in "${REGIONS[@]}"; do
           aws ecr get-login-password --region $REGION | \
           docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com
