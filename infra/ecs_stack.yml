@@ -1,0 +1,185 @@
+# ecs template
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This is a template for ECS Cluster of type Fargate
+
+Parameters:
+  KeyName:
+    Description: EC2 KeyPair for SSH access
+    Type: AWS::EC2::KeyPair::KeyName
+
+  CMS3VPC:
+    Description: "VPC ID of the existing VPC"
+    Type: AWS::EC2::VPC::Id
+
+  CMS3PrivateSubnet1:
+    Description: "Private Subnet 1 ID"
+    Type: AWS::EC2::Subnet::Id
+
+  CMS3PrivateSubnet2:
+    Description: "Private Subnet 2 ID"
+    Type: AWS::EC2::Subnet::Id
+
+  CMS3ALBSecurityGroup:
+    Description: "Security group for ALB and ECS"
+    Type: AWS::EC2::SecurityGroup::Id
+
+  ExistingALB:
+    Description: "The ARN of the existing Application Load Balancer"
+    Type: String
+
+  ExistingTargetGroup:
+    Description: "The ARN of the existing Target Group"
+    Type: String
+
+  ECSAMI:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+Resources:
+  CMS3TestEC2Cluster:
+    Type: AWS::ECS::Cluster
+    Properties: 
+      ClusterName: CMS3TestEC2Cluster
+
+
+  EC2InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from ALB only
+      VpcId: !Ref CMS3VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref CMS3ALBSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      
+  #CMSECSTaskExecutionRole: 
+  ecsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ecsTaskExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
+        - arn:aws:iam::aws:policy/AmazonElasticContainerRegistryPublicReadOnly
+
+
+  #ECS Instance Role
+  ECSInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ECSInstanceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ec2.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ECSInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ECSInstanceRole
+
+  ECSLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceType: t2.xlarge
+        ImageId: !Ref ECSAMI  
+        IamInstanceProfile:
+          Name: !Ref ECSInstanceProfile
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            echo ECS_CLUSTER=${CMS3TestEC2Cluster} >> /etc/ecs/ecs.config
+        SecurityGroupIds: 
+          - !Ref CMS3ALBSecurityGroup
+        KeyName: !Ref KeyName
+
+  CMS3ECSAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: '1'
+      MaxSize: '2'
+      DesiredCapacity: '1'
+      VPCZoneIdentifier: 
+        - !Ref CMS3PrivateSubnet1
+        - !Ref CMS3PrivateSubnet2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ECSLaunchTemplate
+        Version: !GetAtt ECSLaunchTemplate.LatestVersionNumber
+
+  #Task definitions for the services
+  NodejsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      Family: nodejs-service-td
+      RequiresCompatibilities:
+        - EC2
+      NetworkMode: awsvpc
+      Cpu: 1024
+      Memory: 3072
+      ExecutionRoleArn: !GetAtt ecsTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: nodejs
+          Image: 722136401996.dkr.ecr.us-east-1.amazonaws.com/example-nodejs:latest
+          Memory: 512
+          Cpu: 256
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              HostPort: 8080
+              Protocol: tcp
+              appProtocol: http
+          LogConfiguration:
+            LogDriver: "awslogs"
+            Options: 
+              awslogs-create-group: "true"
+              awslogs-group: "/ecs/cms3-ecs-ec2-loggroup"
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: "ecs"
+
+
+  #ECS EC2 Services
+  NodejsService:
+    Type: AWS::ECS::Service
+    Properties: 
+      Cluster: 
+        Ref: CMS3TestEC2Cluster
+      ServiceName: NodejsService
+      LaunchType: EC2
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+           - !Ref CMS3PrivateSubnet1
+           - !Ref CMS3PrivateSubnet2
+          SecurityGroups:
+           - !Ref EC2InstanceSecurityGroup
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - ContainerName: nodejs
+          ContainerPort: 8080
+          TargetGroupArn: !Ref ExistingTargetGroup
+      TaskDefinition: !Ref NodejsTaskDefinition
