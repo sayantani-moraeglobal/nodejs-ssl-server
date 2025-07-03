@@ -1,27 +1,52 @@
 version: 0.2
 
+env:
+  variables:
+    REGIONS: "us-east-1 ap-south-1"
+
 phases:
-  pre_build:
+  install:
+    runtime-versions:
+      docker: 18
     commands:
-      - echo Logging in to Amazon ECR...
-      - aws --version
-      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 722136401996.dkr.ecr.us-east-1.amazonaws.com
-      - REPOSITORY_URI=722136401996.dkr.ecr.us-east-1.amazonaws.com/example-nodejs
-      
+      - echo Installing AWS CLI if missing...
+      - pip install --upgrade awscli
+
   build:
     commands:
-      - echo Build started on `date`
-      - echo Building the Docker image...
-      - docker build -t $REPOSITORY_URI:latest .
-      
-  post_build:
-    commands:
-      - echo Build completed on `date`
-      - echo Pushing the Docker images...
-      - docker push $REPOSITORY_URI:latest
-      - echo Writing image definitions file...
-      - DOCKER_CONTAINER_NAME=example-nodejs
-      - printf '[{"name":"%s","imageUri":"%s"}]' $DOCKER_CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - echo "Deploying to regions: $REGIONS"
+      - |
+        for REGION in $REGIONS; do
+          echo "------------------------------"
+          echo "Deploying Network Stack to $REGION"
+          echo "------------------------------"
+          aws cloudformation deploy \
+            --template-file infra/vpc_stack.yaml \
+            --stack-name vpc-stack-$REGION \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region $REGION
 
-artifacts:
-    files: imagedefinitions.json
+          echo "Deploying ALB + WAF Stack to $REGION"
+          aws cloudformation deploy \
+            --template-file infra/alb_stack.yaml \
+            --stack-name alb-stack-$REGION \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region $REGION
+
+          echo "Deploying ECS Stack to $REGION"
+          aws cloudformation deploy \
+            --template-file infra/ecs_stack.yaml \
+            --stack-name ecs-stack-$REGION \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region $REGION
+
+          # Optional: deploy CloudFront only once in us-east-1
+          if [ "$REGION" = "us-east-1" ]; then
+            echo "Deploying CloudFront Stack in $REGION"
+            aws cloudformation deploy \
+              --template-file infra/waf_cloudfront_stack.yaml \
+              --stack-name waf-cloudfront-stack \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --region $REGION
+          fi
+        done
