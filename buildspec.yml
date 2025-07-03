@@ -23,7 +23,7 @@ phases:
 
       - echo Tagging and pushing Docker images to ECR in all regions...
       - |
-        for REGION in "$REGIONS"; do
+        for REGION in $REGIONS; do
           IMAGE_URI="722136401996.dkr.ecr.$REGION.amazonaws.com/example-nodejs:latest"
           docker tag example-nodejs:latest $IMAGE_URI
           docker push $IMAGE_URI
@@ -31,7 +31,7 @@ phases:
 
       - echo Deploying CloudFormation stacks in all regions...
       - |
-        for REGION in "$REGIONS"; do
+        for REGION in $REGIONS; do
           echo "Deploying Network Stack in $REGION..."
           aws cloudformation deploy \
             --region $REGION \
