@@ -19,7 +19,7 @@ phases:
   build:
     commands:
       - echo Building Docker image...
-      - docker build -t nodejs-app .
+      - docker build -t example-nodejs .
 
       - echo Tagging and pushing Docker images to ECR in all regions...
       - |
