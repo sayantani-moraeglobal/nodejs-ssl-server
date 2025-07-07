@@ -1,31 +1,26 @@
 # VPC Template
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: This is a template for VPC, Internet Gateway, Public Subnet, Private Subnet, NAT Gateway, Route Tables and Security groups
+Description: VPC stack with public/private subnets, IGW, NAT, and route tables
 
 Parameters:
   CMSVpcCIDR: 
-    Description: CIDR range for VPC
     Type: String
     Default: 10.100.0.0/16
     
   CMSPublicSubnetCIDR1: 
-    Description: CIDR range for public Subnet1
     Type: String
     Default: 10.100.1.0/24
 
   CMSPublicSubnetCIDR2: 
-    Description: CIDR range for public Subnet2
     Type: String
     Default: 10.100.2.0/24
 
   CMSPrivateSubnetCIDR1:
-    Description: CIDR range for private subnet1
     Type: String
     Default: 10.100.10.0/24
 
   CMSPrivateSubnetCIDR2:
-    Description: CIDR range for private subnet2
     Type: String
     Default: 10.100.11.0/24
 
@@ -33,10 +28,9 @@ Resources:
   CMS3VPC:
     Type: AWS::EC2::VPC
     Properties: 
-      CidrBlock:
-        Ref: CMSVpcCIDR
-      EnableDnsSupport: "true"
-      EnableDnsHostnames: "true"
+      CidrBlock: !Ref CMSVpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
       Tags:
         - Key: Name
           Value: CMS3VPC
@@ -51,20 +45,15 @@ Resources:
   AttachCMS3InternetGateway:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      VpcId:
-        Ref: CMS3VPC
-      InternetGatewayId:
-        Ref: CMS3InternetGateway
-  
+      VpcId: !Ref CMS3VPC
+      InternetGatewayId: !Ref CMS3InternetGateway
+
   CMS3PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties: 
-      VpcId: 
-        Ref: CMS3VPC
-      CidrBlock:
-        Ref: CMSPublicSubnetCIDR1
-      MapPublicIpOnLaunch: 'true'
-      #AvailabilityZone: us-east-1a
+      VpcId: !Ref CMS3VPC
+      CidrBlock: !Ref CMSPublicSubnetCIDR1
+      MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [ 0, !GetAZs "" ]
       Tags:
         - Key: Name
@@ -73,12 +62,9 @@ Resources:
   CMS3PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties: 
-      VpcId: 
-        Ref: CMS3VPC
-      CidrBlock:
-        Ref: CMSPublicSubnetCIDR2
-      MapPublicIpOnLaunch: 'true'
-      #AvailabilityZone: us-east-1b
+      VpcId: !Ref CMS3VPC
+      CidrBlock: !Ref CMSPublicSubnetCIDR2
+      MapPublicIpOnLaunch: true
       AvailabilityZone: !Select [ 1, !GetAZs "" ]
       Tags:
         - Key: Name
@@ -87,12 +73,9 @@ Resources:
   CMS3PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties: 
-      VpcId: 
-        Ref: CMS3VPC
-      CidrBlock:
-        Ref: CMSPrivateSubnetCIDR1
-      MapPublicIpOnLaunch: 'false'
-      #AvailabilityZone: us-east-1c
+      VpcId: !Ref CMS3VPC
+      CidrBlock: !Ref CMSPrivateSubnetCIDR1
+      MapPublicIpOnLaunch: false
       AvailabilityZone: !Select [ 0, !GetAZs "" ]
       Tags:
         - Key: Name
@@ -101,12 +84,9 @@ Resources:
   CMS3PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties: 
-      VpcId: 
-        Ref: CMS3VPC
-      CidrBlock:
-        Ref: CMSPrivateSubnetCIDR2
-      MapPublicIpOnLaunch: 'false'
-      #AvailabilityZone: us-east-1d
+      VpcId: !Ref CMS3VPC
+      CidrBlock: !Ref CMSPrivateSubnetCIDR2
+      MapPublicIpOnLaunch: false
       AvailabilityZone: !Select [ 1, !GetAZs "" ]
       Tags:
         - Key: Name
@@ -122,8 +102,7 @@ Resources:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt CMS3NATGatewayEIP.AllocationId
-      SubnetId:
-        Ref: CMS3PublicSubnet1
+      SubnetId: !Ref CMS3PublicSubnet1
       Tags:
         - Key: Name
           Value: CMS3NATGateway
@@ -131,8 +110,7 @@ Resources:
   CMS3PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId:
-        Ref: CMS3VPC
+      VpcId: !Ref CMS3VPC
       Tags:
         - Key: Name
           Value: CMS3PublicRouteTable
@@ -141,35 +119,26 @@ Resources:
     Type: AWS::EC2::Route
     DependsOn: AttachCMS3InternetGateway
     Properties: 
-      RouteTableId:
-        Ref: CMS3PublicRouteTable
+      RouteTableId: !Ref CMS3PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: 
-        Ref: CMS3InternetGateway
+      GatewayId: !Ref CMS3InternetGateway
 
   CMS3PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    DependsOn: CMS3PublicRoute
     Properties: 
-      SubnetId:
-        Ref: CMS3PublicSubnet1
-      RouteTableId: 
-        Ref: CMS3PublicRouteTable
+      SubnetId: !Ref CMS3PublicSubnet1
+      RouteTableId: !Ref CMS3PublicRouteTable
 
   CMS3PublicSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    DependsOn: CMS3PublicRoute
     Properties: 
-      SubnetId:
-        Ref: CMS3PublicSubnet2
-      RouteTableId: 
-        Ref: CMS3PublicRouteTable  
+      SubnetId: !Ref CMS3PublicSubnet2
+      RouteTableId: !Ref CMS3PublicRouteTable
 
   CMS3PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: 
-        Ref: CMS3VPC
+      VpcId: !Ref CMS3VPC
       Tags:
         - Key: Name
           Value: CMS3PrivateRouteTable
@@ -177,51 +146,55 @@ Resources:
   CMS3PrivateRoute:
     Type: AWS::EC2::Route
     Properties:
-      RouteTableId: 
-        Ref: CMS3PrivateRouteTable
+      RouteTableId: !Ref CMS3PrivateRouteTable
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId:
-        Ref: CMS3NATGateway
+      NatGatewayId: !Ref CMS3NATGateway
 
   CMS3PrivateSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    DependsOn: CMS3PrivateRoute
     Properties:
-      SubnetId: 
-        Ref: CMS3PrivateSubnet1
-      RouteTableId: 
-        Ref: CMS3PrivateRouteTable
+      SubnetId: !Ref CMS3PrivateSubnet1
+      RouteTableId: !Ref CMS3PrivateRouteTable
 
   CMS3PrivateSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
-    DependsOn: CMS3PrivateRoute
     Properties:
-      SubnetId: 
-        Ref: CMS3PrivateSubnet2
-      RouteTableId: 
-        Ref: CMS3PrivateRouteTable
-
- 
+      SubnetId: !Ref CMS3PrivateSubnet2
+      RouteTableId: !Ref CMS3PrivateRouteTable
 
 Outputs:
   VPCId:
-    Description: 'CMS3 VPC ID'
+    Description: CMS3 VPC ID
     Value: !Ref CMS3VPC
+    Export:
+      Name: CMS3-VPC-ID
+
   PublicSubnetId1:
-    Description: 'CMS3 Public Subnet ID'
+    Description: Public Subnet 1 ID
     Value: !Ref CMS3PublicSubnet1
+    Export:
+      Name: CMS3-PublicSubnet-1
+
   PublicSubnetId2:
-    Description: 'CMS3 Public Subnet ID'
+    Description: Public Subnet 2 ID
     Value: !Ref CMS3PublicSubnet2
+    Export:
+      Name: CMS3-PublicSubnet-2
+
   PrivateSubnetId1:
-    Description: 'CMS3 Private Subnet ID'
+    Description: Private Subnet 1 ID
     Value: !Ref CMS3PrivateSubnet1
+    Export:
+      Name: CMS3-PrivateSubnet-1
+
   PrivateSubnetId2:
-    Description: 'CMS3 Private Subnet ID'
+    Description: Private Subnet 2 ID
     Value: !Ref CMS3PrivateSubnet2
+    Export:
+      Name: CMS3-PrivateSubnet-2
+
   NATGatewayId:
-    Description: 'NAT Gateway ID'
-    Value: !Ref CMS3NATGateway   
-  
-
-
+    Description: NAT Gateway ID
+    Value: !Ref CMS3NATGateway
+    Export:
+      Name: CMS3-NAT-Gateway-ID
