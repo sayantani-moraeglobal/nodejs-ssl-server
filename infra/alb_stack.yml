@@ -1,29 +1,19 @@
 #ALB Template
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: This is a template for Security group of ALB, ALB, Target group, ALB Listener, WAF and CloudFront
+Description: ALB, Security Group, Target Groups, Listeners (HTTPS, Node.js), using existing VPC and subnets
 
 Parameters:
-  CMS3VPC:
-    Description: "VPC ID of the existing VPC"
-    Type: AWS::EC2::VPC::Id
-
-  CMS3PublicSubnet1:
-    Description: "Public Subnet 1 ID"
-    Type: AWS::EC2::Subnet::Id
-
-  CMS3PublicSubnet2:
-    Description: "Public Subnet 2 ID"
-    Type: AWS::EC2::Subnet::Id
-
+  ACMCertificateArn:
+    Description: ACM certificate ARN for HTTPS listener
+    Type: String
 
 Resources:
   CMS3ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allows HTTP and HTTPs Traffic
-      VpcId: 
-        Ref: CMS3VPC
+      GroupDescription: Allows HTTP and HTTPS traffic
+      VpcId: !ImportValue CMS3-VPC-ID
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -32,16 +22,15 @@ Resources:
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
-          CidrIp: 0.0.0.0/0  
-      Tags: 
+          CidrIp: 0.0.0.0/0
+      Tags:
         - Key: Name
           Value: CMS3ALBSecurityGroup
 
   CMS3HTTPTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: 
-        Ref: CMS3VPC
+      VpcId: !ImportValue CMS3-VPC-ID
       Protocol: HTTP
       Port: 80
       TargetType: ip
@@ -58,8 +47,7 @@ Resources:
   CMS3HTTPSTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: 
-        Ref: CMS3VPC
+      VpcId: !ImportValue CMS3-VPC-ID
       Protocol: HTTPS
       Port: 443
       TargetType: ip
@@ -76,8 +64,7 @@ Resources:
   CMSNodejsTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: 
-        Ref: CMS3VPC
+      VpcId: !ImportValue CMS3-VPC-ID
       Protocol: HTTP
       Port: 8080
       TargetType: instance
@@ -95,36 +82,72 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties: 
       Name: CMS3ApplicationLoadBalancer
-      SecurityGroups:
-        - !Ref CMS3ALBSecurityGroup
-      Subnets:
-        - !Ref CMS3PublicSubnet1
-        - !Ref CMS3PublicSubnet2
       Scheme: internet-facing
       Type: application
+      Subnets:
+        - !ImportValue CMS3-PublicSubnet-1
+        - !ImportValue CMS3-PublicSubnet-2
+      SecurityGroups:
+        - !Ref CMS3ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: CMS3ALB
 
   CMS3ALBHTTPSListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: 
-        Ref: CMS3ApplicationLoadBalancer
+      LoadBalancerArn: !Ref CMS3ApplicationLoadBalancer
       Protocol: HTTPS
       Port: 443
+      Certificates:
+        - CertificateArn: !Ref ACMCertificateArn
       DefaultActions:
         - Type: forward
-          TargetGroupArn: 
-            Ref: CMS3HTTPSTargetGroup
-      Certificates:
-        - CertificateArn: arn:aws:acm:us-east-1:722136401996:certificate/44fa3ab7-f45f-493c-9be0-20936f308f26
+          TargetGroupArn: !Ref CMS3HTTPSTargetGroup
 
   CMS3NodejsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: 
-        Ref: CMS3ApplicationLoadBalancer
+      LoadBalancerArn: !Ref CMS3ApplicationLoadBalancer
       Protocol: HTTP
       Port: 8080
       DefaultActions:
         - Type: forward
-          TargetGroupArn: 
-            Ref: CMSNodejsTargetGroup
+          TargetGroupArn: !Ref CMSNodejsTargetGroup
+
+Outputs:
+  ALBArn:
+    Description: Application Load Balancer ARN
+    Value: !Ref CMS3ApplicationLoadBalancer
+    Export:
+      Name: CMS3-ALB-ARN
+
+  ALBHTTPSListenerArn:
+    Description: HTTPS Listener ARN
+    Value: !Ref CMS3ALBHTTPSListener
+    Export:
+      Name: CMS3-ALB-HTTPS-Listener
+
+  ALBSecurityGroupId:
+    Description: ALB Security Group ID
+    Value: !Ref CMS3ALBSecurityGroup
+    Export:
+      Name: CMS3-ALB-SG-ID
+
+  NodejsTargetGroupArn:
+    Description: Node.js Target Group ARN
+    Value: !Ref CMSNodejsTargetGroup
+    Export:
+      Name: CMS3-TG-Nodejs
+
+  HTTPTargetGroupArn:
+    Description: HTTP Target Group ARN
+    Value: !Ref CMS3HTTPTargetGroup
+    Export:
+      Name: CMS3-TG-HTTP
+
+  HTTPSTargetGroupArn:
+    Description: HTTPS Target Group ARN
+    Value: !Ref CMS3HTTPSTargetGroup
+    Export:
+      Name: CMS3-TG-HTTPS
