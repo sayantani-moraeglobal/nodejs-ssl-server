@@ -1,12 +1,24 @@
 # ecs template
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: ECS Cluster with EC2 launch type, Node.js service behind ALB
+Description: ECS Cluster (EC2 launch type) with imported ALB dependencies
 
 Parameters:
   KeyName:
     Description: EC2 KeyPair for SSH access
     Type: AWS::EC2::KeyPair::KeyName
+
+  CMS3VPC:
+    Description: "VPC ID of the existing VPC"
+    Type: AWS::EC2::VPC::Id
+
+  CMS3PrivateSubnet1:
+    Description: "Private Subnet 1 ID"
+    Type: AWS::EC2::Subnet::Id
+
+  CMS3PrivateSubnet2:
+    Description: "Private Subnet 2 ID"
+    Type: AWS::EC2::Subnet::Id
 
   ECSAMI:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
@@ -21,13 +33,14 @@ Resources:
   EC2InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow traffic from ALB and SSH
-      VpcId: !ImportValue CMS3-VPC-ID
+      GroupDescription: Allow traffic from ALB only
+      VpcId: !Ref CMS3VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 8080
           ToPort: 8080
-          SourceSecurityGroupId: !ImportValue CMS3-ALB-SG-ID
+          SourceSecurityGroupId: 
+            Fn::ImportValue: !Sub CMS3-ALB-SG-${AWS::Region}
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -42,8 +55,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service:
-                - ecs-tasks.amazonaws.com
+              Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
@@ -62,8 +74,8 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: [ec2.amazonaws.com]
-            Action: ['sts:AssumeRole']
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
 
@@ -78,7 +90,7 @@ Resources:
     Properties:
       LaunchTemplateData:
         InstanceType: t2.xlarge
-        ImageId: !Ref ECSAMI  
+        ImageId: !Ref ECSAMI
         IamInstanceProfile:
           Name: !Ref ECSInstanceProfile
         UserData:
@@ -86,7 +98,7 @@ Resources:
             #!/bin/bash
             echo ECS_CLUSTER=${CMS3TestEC2Cluster} >> /etc/ecs/ecs.config
         SecurityGroupIds: 
-          - !Ref EC2InstanceSecurityGroup
+          - Fn::ImportValue: !Sub CMS3-ALB-SG-${AWS::Region}
         KeyName: !Ref KeyName
 
   CMS3ECSAutoScalingGroup:
@@ -96,8 +108,8 @@ Resources:
       MaxSize: '2'
       DesiredCapacity: '1'
       VPCZoneIdentifier: 
-        - !ImportValue CMS3-PrivateSubnet-1
-        - !ImportValue CMS3-PrivateSubnet-2
+        - !Ref CMS3PrivateSubnet1
+        - !Ref CMS3PrivateSubnet2
       LaunchTemplate:
         LaunchTemplateId: !Ref ECSLaunchTemplate
         Version: !GetAtt ECSLaunchTemplate.LatestVersionNumber
@@ -122,7 +134,7 @@ Resources:
             - ContainerPort: 8080
               HostPort: 8080
               Protocol: tcp
-              AppProtocol: http
+              appProtocol: http
           LogConfiguration:
             LogDriver: "awslogs"
             Options: 
@@ -141,27 +153,15 @@ Resources:
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
-            - !ImportValue CMS3-PrivateSubnet-1
-            - !ImportValue CMS3-PrivateSubnet-2
+           - !Ref CMS3PrivateSubnet1
+           - !Ref CMS3PrivateSubnet2
           SecurityGroups:
-            - !Ref EC2InstanceSecurityGroup
+           - !Ref EC2InstanceSecurityGroup
           AssignPublicIp: DISABLED
       LoadBalancers:
         - ContainerName: nodejs
           ContainerPort: 8080
-          TargetGroupArn: !ImportValue CMS3-TG-Nodejs
+          TargetGroupArn: 
+            Fn::ImportValue: !Sub CMS3-TG-Nodejs-${AWS::Region}
       TaskDefinition: !Ref NodejsTaskDefinition
-
-Outputs:
-  ECSClusterName:
-    Description: ECS Cluster name
-    Value: !Ref CMS3TestEC2Cluster
-    Export:
-      Name: CMS3-ECS-Cluster
-
-  NodejsServiceName:
-    Description: ECS Service name
-    Value: !Ref NodejsService
-    Export:
-      Name: CMS3-NodejsService
 
