@@ -5,26 +5,23 @@ phases:
     commands:
       - echo Logging into Docker Hub...
       - echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-      
-      - echo Logging into ECR for all target regions...
+
+      - echo Logging into ECR in all target regions...
       - REGIONS="us-east-1 ap-south-1"
       - |
         for REGION in $REGIONS; do
           echo "Logging into ECR in $REGION..."
           aws ecr get-login-password --region $REGION | \
-            docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com
-          if [ $? -ne 0 ]; then
-            echo "❌ Docker login failed for $REGION"
-            exit 1
-          fi
+            docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com || exit 1
         done
 
   build:
     commands:
+      - set -e
       - echo Building Docker image...
       - docker build -t example-nodejs .
 
-      - echo Tagging and pushing Docker images to ECR in all regions...
+      - echo Tagging and pushing Docker image to ECR in all regions...
       - |
         for REGION in $REGIONS; do
           IMAGE_URI="722136401996.dkr.ecr.$REGION.amazonaws.com/example-nodejs:latest"
@@ -35,20 +32,11 @@ phases:
       - echo Deploying CloudFormation stacks in all regions...
       - |
         for REGION in $REGIONS; do
-          echo "Deploying Network Stack in $REGION..."
+          echo "Deploying VPC Stack in $REGION..."
           aws cloudformation deploy \
             --region $REGION \
             --stack-name vpc-stack-$REGION \
             --template-file infra/vpc_template.yaml \
-            --capabilities CAPABILITY_NAMED_IAM
-
-          echo "Deploying ECS Stack in $REGION..."
-          aws cloudformation deploy \
-            --region $REGION \
-            --stack-name ecs-stack-$REGION \
-            --template-file infra/ecs_stack.yaml \
-            --parameter-overrides \
-              ImageUri=722136401996.dkr.ecr.$REGION.amazonaws.com/example-nodejs:latest \
             --capabilities CAPABILITY_NAMED_IAM
 
           echo "Deploying ALB Stack in $REGION..."
@@ -58,15 +46,24 @@ phases:
             --template-file infra/alb_stack.yaml \
             --capabilities CAPABILITY_NAMED_IAM
 
-          echo "Deploying CloudFront Stack globally..."
-          if [ "$REGION" == "us-east-1" ]; then
+          echo "Deploying ECS Stack in $REGION..."
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name ecs-stack-$REGION \
+            --template-file infra/ecs_stack.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              KeyName=$KEY_NAME \
+              TargetGroupExportName=CMS3-TG-Nodejs-$REGION
+
+          if [ "$REGION" = "us-east-1" ]; then
+            echo "Deploying CloudFront + WAF Stack globally from $REGION..."
             aws cloudformation deploy \
               --region $REGION \
               --stack-name waf-cloudfront-stack \
               --template-file infra/waf_cloudfront_stack.yaml \
               --capabilities CAPABILITY_NAMED_IAM
           fi
-
         done
 
 artifacts:
