@@ -7,7 +7,7 @@ Parameters:
   CMSVpcCIDR: 
     Type: String
     Default: 10.100.0.0/16
-    
+
   CMSPublicSubnetCIDR1: 
     Type: String
     Default: 10.100.1.0/24
@@ -167,34 +167,34 @@ Outputs:
     Description: CMS3 VPC ID
     Value: !Ref CMS3VPC
     Export:
-      Name: CMS3-VPC-ID
+      Name: !Sub CMS3-VPC-ID-${AWS::Region}
 
   PublicSubnetId1:
     Description: Public Subnet 1 ID
     Value: !Ref CMS3PublicSubnet1
     Export:
-      Name: CMS3-PublicSubnet-1
+      Name: !Sub CMS3-PublicSubnet-1-${AWS::Region}
 
   PublicSubnetId2:
     Description: Public Subnet 2 ID
     Value: !Ref CMS3PublicSubnet2
     Export:
-      Name: CMS3-PublicSubnet-2
+      Name: !Sub CMS3-PublicSubnet-2-${AWS::Region}
 
   PrivateSubnetId1:
     Description: Private Subnet 1 ID
     Value: !Ref CMS3PrivateSubnet1
     Export:
-      Name: CMS3-PrivateSubnet-1
+      Name: !Sub CMS3-PrivateSubnet-1-${AWS::Region}
 
   PrivateSubnetId2:
     Description: Private Subnet 2 ID
     Value: !Ref CMS3PrivateSubnet2
     Export:
-      Name: CMS3-PrivateSubnet-2
+      Name: !Sub CMS3-PrivateSubnet-2-${AWS::Region}
 
   NATGatewayId:
     Description: NAT Gateway ID
     Value: !Ref CMS3NATGateway
     Export:
-      Name: CMS3-NAT-Gateway-ID
+      Name: !Sub CMS3-NAT-Gateway-ID-${AWS::Region}
