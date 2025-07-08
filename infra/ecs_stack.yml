@@ -1,24 +1,16 @@
 # ecs template
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: ECS Cluster (EC2 launch type) with imported ALB dependencies
+Description: ECS Cluster on EC2 with ALB Integration
 
 Parameters:
+  RegionName:
+    Type: String
+    Description: Region name used in export names (e.g., us-east-1, ap-south-1)
+
   KeyName:
-    Description: EC2 KeyPair for SSH access
     Type: AWS::EC2::KeyPair::KeyName
-
-  CMS3VPC:
-    Description: "VPC ID of the existing VPC"
-    Type: AWS::EC2::VPC::Id
-
-  CMS3PrivateSubnet1:
-    Description: "Private Subnet 1 ID"
-    Type: AWS::EC2::Subnet::Id
-
-  CMS3PrivateSubnet2:
-    Description: "Private Subnet 2 ID"
-    Type: AWS::EC2::Subnet::Id
+    Description: EC2 key pair name for SSH access (passed via CodeBuild env vars)
 
   ECSAMI:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
@@ -33,14 +25,13 @@ Resources:
   EC2InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow traffic from ALB only
-      VpcId: !Ref CMS3VPC
+      GroupDescription: Allow traffic from ALB
+      VpcId: !ImportValue !Sub CMS3-VPC-ID-${RegionName}
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 8080
           ToPort: 8080
-          SourceSecurityGroupId: 
-            Fn::ImportValue: !Sub CMS3-ALB-SG-${AWS::Region}
+          SourceSecurityGroupId: !ImportValue !Sub CMS3-ALB-SG-${RegionName}
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -96,9 +87,9 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
-            echo ECS_CLUSTER=${CMS3TestEC2Cluster} >> /etc/ecs/ecs.config
-        SecurityGroupIds: 
-          - Fn::ImportValue: !Sub CMS3-ALB-SG-${AWS::Region}
+            echo ECS_CLUSTER=CMS3TestEC2Cluster >> /etc/ecs/ecs.config
+        SecurityGroupIds:
+          - !ImportValue !Sub CMS3-ALB-SG-${RegionName}
         KeyName: !Ref KeyName
 
   CMS3ECSAutoScalingGroup:
@@ -107,16 +98,16 @@ Resources:
       MinSize: '1'
       MaxSize: '2'
       DesiredCapacity: '1'
-      VPCZoneIdentifier: 
-        - !Ref CMS3PrivateSubnet1
-        - !Ref CMS3PrivateSubnet2
+      VPCZoneIdentifier:
+        - !ImportValue !Sub CMS3-PrivateSubnet-1-${RegionName}
+        - !ImportValue !Sub CMS3-PrivateSubnet-2-${RegionName}
       LaunchTemplate:
         LaunchTemplateId: !Ref ECSLaunchTemplate
         Version: !GetAtt ECSLaunchTemplate.LatestVersionNumber
 
   NodejsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
-    Properties: 
+    Properties:
       Family: nodejs-service-td
       RequiresCompatibilities:
         - EC2
@@ -126,7 +117,7 @@ Resources:
       ExecutionRoleArn: !GetAtt ecsTaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: nodejs
-          Image: 722136401996.dkr.ecr.us-east-1.amazonaws.com/example-nodejs:latest
+          Image: !Sub 722136401996.dkr.ecr.${RegionName}.amazonaws.com/example-nodejs:latest
           Memory: 512
           Cpu: 256
           Essential: true
@@ -134,10 +125,10 @@ Resources:
             - ContainerPort: 8080
               HostPort: 8080
               Protocol: tcp
-              appProtocol: http
+              AppProtocol: http
           LogConfiguration:
-            LogDriver: "awslogs"
-            Options: 
+            LogDriver: awslogs
+            Options:
               awslogs-create-group: "true"
               awslogs-group: "/ecs/cms3-ecs-ec2-loggroup"
               awslogs-region: !Ref "AWS::Region"
@@ -145,7 +136,7 @@ Resources:
 
   NodejsService:
     Type: AWS::ECS::Service
-    Properties: 
+    Properties:
       Cluster: !Ref CMS3TestEC2Cluster
       ServiceName: NodejsService
       LaunchType: EC2
@@ -153,15 +144,13 @@ Resources:
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
-           - !Ref CMS3PrivateSubnet1
-           - !Ref CMS3PrivateSubnet2
+            - !ImportValue !Sub CMS3-PrivateSubnet-1-${RegionName}
+            - !ImportValue !Sub CMS3-PrivateSubnet-2-${RegionName}
           SecurityGroups:
-           - !Ref EC2InstanceSecurityGroup
+            - !Ref EC2InstanceSecurityGroup
           AssignPublicIp: DISABLED
       LoadBalancers:
         - ContainerName: nodejs
           ContainerPort: 8080
-          TargetGroupArn: 
-            Fn::ImportValue: !Sub CMS3-TG-Nodejs-${AWS::Region}
+          TargetGroupArn: !ImportValue !Sub CMS3-NodejsTargetGroup-${RegionName}
       TaskDefinition: !Ref NodejsTaskDefinition
-
