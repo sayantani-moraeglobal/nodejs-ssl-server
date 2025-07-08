@@ -37,14 +37,14 @@ phases:
             --region $REGION \
             --stack-name vpc-stack-$REGION \
             --template-file infra/vpc_template.yaml \
-            --capabilities CAPABILITY_NAMED_IAM
+            --capabilities CAPABILITY_NAMED_IAM || exit 1
 
           echo "Deploying ALB Stack in $REGION..."
           aws cloudformation deploy \
             --region $REGION \
             --stack-name alb-stack-$REGION \
             --template-file infra/alb_stack.yaml \
-            --capabilities CAPABILITY_NAMED_IAM
+            --capabilities CAPABILITY_NAMED_IAM || exit 1
 
           echo "Deploying ECS Stack in $REGION..."
           aws cloudformation deploy \
@@ -54,7 +54,7 @@ phases:
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               KeyName=$KEY_NAME \
-              TargetGroupExportName=CMS3-TG-Nodejs-$REGION
+              TargetGroupExportName=CMS3-TG-Nodejs-$REGION || exit 1
 
           if [ "$REGION" = "us-east-1" ]; then
             echo "Deploying CloudFront + WAF Stack globally from $REGION..."
@@ -62,7 +62,8 @@ phases:
               --region $REGION \
               --stack-name waf-cloudfront-stack \
               --template-file infra/waf_cloudfront_stack.yaml \
-              --capabilities CAPABILITY_NAMED_IAM
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameter-overrides RegionName=$REGION || exit 1
           fi
         done
 
