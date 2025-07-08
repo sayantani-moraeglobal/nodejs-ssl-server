@@ -1,21 +1,20 @@
 #WAF+CloudFront Template
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: This is a template for WAF and CloudFront
+Description: CloudFormation Template for WAF and CloudFront (ALB origin)
 
 Parameters:
-  CMS3ALBDomainName:
+  RegionName:
     Type: String
-    Description: This is the Domain name of the CMS3 Application Loadbalancer
+    Description: Region used in Export names (e.g., us-east-1, ap-south-1)
 
-  
 Resources:
   CMS3CloudFrontWebACL:
     Type: AWS::WAFv2::WebACL
     Properties:
       Name: CMS3CloudFrontWebACL
       Scope: CLOUDFRONT
-      Description: This is a WebACL for the CloudFront
+      Description: WAF WebACL for CMS3 CloudFront Distribution
       DefaultAction: 
         Allow: {}
       VisibilityConfig:
@@ -67,19 +66,19 @@ Resources:
     Properties:
       DistributionConfig:
         Origins:
-          - Id: 'CMS3ALBLoadBalancer'  
-            DomainName: !Ref CMS3ALBDomainName
+          - Id: CMS3ALBLoadBalancer  
+            DomainName: !ImportValue !Sub CMS3-ALB-DNS-${RegionName}
             OriginPath: ''
             CustomOriginConfig:
               HTTPPort: 8080
               HTTPSPort: 443
-              OriginProtocolPolicy: 'http-only'  
-        Enabled: 'true'
+              OriginProtocolPolicy: http-only
+        Enabled: true
         DefaultCacheBehavior:
-          TargetOriginId: 'CMS3ALBLoadBalancer'
-          ViewerProtocolPolicy: 'redirect-to-https' # Force HTTPS for clients connecting to CloudFront
+          TargetOriginId: CMS3ALBLoadBalancer
+          ViewerProtocolPolicy: redirect-to-https
           ForwardedValues:
-            QueryString: 'false'
+            QueryString: false
             Cookies:
               Forward: none
         WebACLId: !GetAtt CMS3CloudFrontWebACL.Arn
@@ -88,4 +87,3 @@ Resources:
           SslSupportMethod: sni-only
           MinimumProtocolVersion: TLSv1.2_2021
         PriceClass: PriceClass_100
-
