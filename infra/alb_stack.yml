@@ -1,28 +1,19 @@
 #ALB Template
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: This is a template for Security group of ALB, ALB, Target group, ALB Listener, WAF and CloudFront
+Description: ALB stack including Security Group, ALB, Target Groups, and Listeners
 
 Parameters:
-  CMS3VPC:
-    Description: "VPC ID of the existing VPC"
-    Type: AWS::EC2::VPC::Id
-
-  CMS3PublicSubnet1:
-    Description: "Public Subnet 1 ID"
-    Type: AWS::EC2::Subnet::Id
-
-  CMS3PublicSubnet2:
-    Description: "Public Subnet 2 ID"
-    Type: AWS::EC2::Subnet::Id
+  RegionName:
+    Type: String
+    Description: Region name to import VPC-related exports (e.g., us-east-1, ap-south-1)
 
 Resources:
   CMS3ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allows HTTP and HTTPS Traffic
-      VpcId: 
-        Ref: CMS3VPC
+      VpcId: !ImportValue !Sub CMS3-VPC-ID-${RegionName}
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -31,7 +22,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
-          CidrIp: 0.0.0.0/0  
+          CidrIp: 0.0.0.0/0
       Tags: 
         - Key: Name
           Value: CMS3ALBSecurityGroup
@@ -39,8 +30,7 @@ Resources:
   CMS3HTTPTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: 
-        Ref: CMS3VPC
+      VpcId: !ImportValue !Sub CMS3-VPC-ID-${RegionName}
       Protocol: HTTP
       Port: 80
       TargetType: ip
@@ -57,8 +47,7 @@ Resources:
   CMS3HTTPSTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: 
-        Ref: CMS3VPC
+      VpcId: !ImportValue !Sub CMS3-VPC-ID-${RegionName}
       Protocol: HTTPS
       Port: 443
       TargetType: ip
@@ -75,8 +64,7 @@ Resources:
   CMSNodejsTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: 
-        Ref: CMS3VPC
+      VpcId: !ImportValue !Sub CMS3-VPC-ID-${RegionName}
       Protocol: HTTP
       Port: 8080
       TargetType: instance
@@ -97,52 +85,48 @@ Resources:
       SecurityGroups:
         - !Ref CMS3ALBSecurityGroup
       Subnets:
-        - !Ref CMS3PublicSubnet1
-        - !Ref CMS3PublicSubnet2
+        - !ImportValue !Sub CMS3-PublicSubnet-1-${RegionName}
+        - !ImportValue !Sub CMS3-PublicSubnet-2-${RegionName}
       Scheme: internet-facing
       Type: application
 
   CMS3ALBHTTPSListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: 
-        Ref: CMS3ApplicationLoadBalancer
+      LoadBalancerArn: !Ref CMS3ApplicationLoadBalancer
       Protocol: HTTPS
       Port: 443
       DefaultActions:
         - Type: forward
-          TargetGroupArn: 
-            Ref: CMS3HTTPSTargetGroup
+          TargetGroupArn: !Ref CMS3HTTPSTargetGroup
       Certificates:
         - CertificateArn: arn:aws:acm:us-east-1:722136401996:certificate/44fa3ab7-f45f-493c-9be0-20936f308f26
 
   CMS3NodejsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: 
-        Ref: CMS3ApplicationLoadBalancer
+      LoadBalancerArn: !Ref CMS3ApplicationLoadBalancer
       Protocol: HTTP
       Port: 8080
       DefaultActions:
         - Type: forward
-          TargetGroupArn: 
-            Ref: CMSNodejsTargetGroup
+          TargetGroupArn: !Ref CMSNodejsTargetGroup
 
 Outputs:
-  NodejsTargetGroupExport:
-    Description: Target group ARN for ECS Node.js service
+  CMSNodejsTargetGroupARN:
+    Description: Node.js Target Group ARN
     Value: !Ref CMSNodejsTargetGroup
     Export:
-      Name: !Sub CMS3-TG-Nodejs-${AWS::Region}
+      Name: !Sub CMS3-NodejsTargetGroup-${RegionName}
 
-  ALBSecurityGroup:
-    Description: Security group for the ALB
+  ALBSecurityGroupId:
+    Description: Security Group ID for ALB
     Value: !Ref CMS3ALBSecurityGroup
     Export:
-      Name: !Sub CMS3-ALB-SG-${AWS::Region}
+      Name: !Sub CMS3-ALB-SG-${RegionName}
 
   ALBArn:
-    Description: ARN of the Application Load Balancer
+    Description: ALB ARN
     Value: !Ref CMS3ApplicationLoadBalancer
     Export:
-      Name: !Sub CMS3-ALB-${AWS::Region}
+      Name: !Sub CMS3-ALB-ARN-${RegionName}
