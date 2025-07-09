@@ -36,7 +36,7 @@ phases:
           aws cloudformation deploy \
             --region $REGION \
             --stack-name vpc-stack-$REGION \
-            --template-file infra/vpc_template.yaml \
+            --template-file infra/vpc_stack.yaml \
             --capabilities CAPABILITY_NAMED_IAM || exit 1
 
           echo "Deploying ALB Stack in $REGION..."
