@@ -39,10 +39,10 @@ phases:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          if [ "$VPC_STATUS" == "CREATE_IN_PROGRESS" ]; then
+          if [ "$VPC_STATUS" = "CREATE_IN_PROGRESS" ]; then
             echo "⚠️ VPC stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
             continue
-          elif [ "$VPC_STATUS" == "CREATE_COMPLETE" ]; then
+          elif [ "$VPC_STATUS" = "CREATE_COMPLETE" ]; then
             echo "✅ VPC stack in $REGION already exists and is complete. Skipping..."
           else
             echo "🚀 Deploying VPC Stack in $REGION..."
