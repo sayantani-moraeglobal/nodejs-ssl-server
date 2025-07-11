@@ -15,7 +15,7 @@ Resources:
       GroupDescription: Allows HTTP and HTTPS Traffic
       VpcId: 
         !ImportValue 
-          !Sub CMS3-VPC-ID-${RegionName}
+          !Sub "CMS3-VPC-ID-${RegionName}"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -34,7 +34,7 @@ Resources:
     Properties:
       VpcId: 
         !ImportValue 
-          !Sub CMS3-VPC-ID-${RegionName}
+          !Sub "CMS3-VPC-ID-${RegionName}"
       Protocol: HTTP
       Port: 80
       TargetType: ip
@@ -53,7 +53,7 @@ Resources:
     Properties:
       VpcId: 
         !ImportValue 
-          !Sub CMS3-VPC-ID-${RegionName}
+          !Sub "CMS3-VPC-ID-${RegionName}"
       Protocol: HTTPS
       Port: 443
       TargetType: ip
@@ -72,7 +72,7 @@ Resources:
     Properties:
       VpcId: 
         !ImportValue 
-          !Sub CMS3-VPC-ID-${RegionName}
+          !Sub "CMS3-VPC-ID-${RegionName}"
       Protocol: HTTP
       Port: 8080
       TargetType: instance
@@ -93,8 +93,8 @@ Resources:
       SecurityGroups:
         - !Ref CMS3ALBSecurityGroup
       Subnets:
-        - !ImportValue !Sub CMS3-PublicSubnet-1-${RegionName}
-        - !ImportValue !Sub CMS3-PublicSubnet-2-${RegionName}
+        - !ImportValue !Sub "CMS3-PublicSubnet-1-${RegionName}"
+        - !ImportValue !Sub "CMS3-PublicSubnet-2-${RegionName}"
       Scheme: internet-facing
       Type: application
 
@@ -125,16 +125,16 @@ Outputs:
     Description: Node.js Target Group ARN
     Value: !Ref CMSNodejsTargetGroup
     Export:
-      Name: !Sub CMS3-NodejsTargetGroup-${RegionName}
+      Name: !Sub "CMS3-NodejsTargetGroup-${RegionName}"
 
   ALBSecurityGroupId:
     Description: Security Group ID for ALB
     Value: !Ref CMS3ALBSecurityGroup
     Export:
-      Name: !Sub CMS3-ALB-SG-${RegionName}
+      Name: !Sub "CMS3-ALB-SG-${RegionName}"
 
   ALBArn:
     Description: ALB ARN
     Value: !Ref CMS3ApplicationLoadBalancer
     Export:
-      Name: !Sub CMS3-ALB-ARN-${RegionName}
+      Name: !Sub "CMS3-ALB-ARN-${RegionName}"
