@@ -12,7 +12,7 @@ Resources:
   CMS3ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allows HTTP and HTTPS Traffic
+      GroupDescription: "Allows HTTP and HTTPS Traffic"
       VpcId: !ImportValue !Sub "CMS3-VPC-ID-${RegionName}"
       SecurityGroupIngress:
         - IpProtocol: tcp
