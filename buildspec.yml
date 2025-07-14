@@ -8,7 +8,7 @@ phases:
       - echo "🔍 Current Git SHA: $(git rev-parse HEAD)"
       - cat infra/alb_stack.yaml
       - echo Logging into ECR in all target regions...
-      - REGIONS="us-east-1 ap-southeast-1"
+      - 'REGIONS="us-east-1 ap-southeast-1"'
       - |
         for REGION in $REGIONS; do
           echo "Logging into ECR in $REGION..."
@@ -84,3 +84,4 @@ phases:
 artifacts:
   files:
     - '**/*'
+
