@@ -10,7 +10,6 @@ phases:
           GIT_SHA=$(git rev-parse HEAD)
           echo "🔍 Current Git SHA: $GIT_SHA"
 
-      - cat infra/alb_stack.yaml
       - echo Logging into ECR in all target regions...
       - 'REGIONS="us-east-1 ap-southeast-1"'
       - |
