@@ -90,9 +90,9 @@ Resources:
         - !Ref CMS3ALBSecurityGroup
       Subnets:
         - !ImportValue 
-            'Fn::Sub': CMS3-PublicSubnet-1-${RegionName}
+            Fn::Sub: CMS3-PublicSubnet-1-${RegionName}
         - !ImportValue 
-            'Fn::Sub': CMS3-PublicSubnet-2-${RegionName}
+            Fn::Sub: CMS3-PublicSubnet-2-${RegionName}
       Scheme: internet-facing
       Type: application
 
