@@ -5,7 +5,8 @@ phases:
     commands:
       - echo Logging into Docker Hub...
       - echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-      - echo "🔍 Current Git SHA: $(git rev-parse HEAD)"
+      - GIT_SHA=$(git rev-parse HEAD)
+      - echo "🔍 Current Git SHA: $GIT_SHA"
       - cat infra/alb_stack.yaml
       - echo Logging into ECR in all target regions...
       - 'REGIONS="us-east-1 ap-southeast-1"'
