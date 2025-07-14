@@ -67,7 +67,7 @@ Resources:
   CMSNodejsTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-     VpcId: !ImportValue 
+      VpcId: !ImportValue 
         Fn::Sub: CMS3-VPC-ID-${RegionName}
       Protocol: HTTP
       Port: 8080
