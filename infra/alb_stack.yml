@@ -13,7 +13,8 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: "Allows HTTP and HTTPS Traffic"
-      VpcId: !ImportValue !Sub "CMS3-VPC-ID-${RegionName}"
+      VpcId: !ImportValue 
+        Fn::Sub: CMS3-VPC-ID-${RegionName}
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -30,7 +31,8 @@ Resources:
   CMS3HTTPTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: !ImportValue !Sub "CMS3-VPC-ID-${RegionName}"
+      VpcId: !ImportValue 
+        Fn::Sub: "CMS3-VPC-ID-${RegionName}"
       Protocol: HTTP
       Port: 80
       TargetType: ip
@@ -47,7 +49,8 @@ Resources:
   CMS3HTTPSTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: !ImportValue !Sub "CMS3-VPC-ID-${RegionName}"
+      VpcId: !ImportValue 
+        Fn::Sub: CMS3-VPC-ID-${RegionName}
       Protocol: HTTPS
       Port: 443
       TargetType: ip
@@ -64,7 +67,8 @@ Resources:
   CMSNodejsTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: !ImportValue !Sub "CMS3-VPC-ID-${RegionName}"
+      VpcId: !ImportValue 
+        Fn::Sub: CMS3-VPC-ID-${RegionName}
       Protocol: HTTP
       Port: 8080
       TargetType: instance
@@ -85,8 +89,8 @@ Resources:
       SecurityGroups:
         - !Ref CMS3ALBSecurityGroup
       Subnets:
-        - !ImportValue !Sub "CMS3-PublicSubnet-1-${RegionName}"
-        - !ImportValue !Sub "CMS3-PublicSubnet-2-${RegionName}"
+        - !ImportValue "CMS3-PublicSubnet-1-${AWS::Region}"
+        - !ImportValue "CMS3-PublicSubnet-2-${AWS::Region}"
       Scheme: internet-facing
       Type: application
 
@@ -130,4 +134,3 @@ Outputs:
     Value: !Ref CMS3ApplicationLoadBalancer
     Export:
       Name: !Sub "CMS3-ALB-ARN-${RegionName}"
-
