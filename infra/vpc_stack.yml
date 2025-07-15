@@ -173,25 +173,25 @@ Outputs:
     Description: Public Subnet 1 ID
     Value: !Ref CMS3PublicSubnet1
     Export:
-      Name: !Sub CMS3-PublicSubnet-1-${AWS::Region}
+      Name: CMS3PublicSubnet1
 
   PublicSubnetId2:
     Description: Public Subnet 2 ID
     Value: !Ref CMS3PublicSubnet2
     Export:
-      Name: !Sub CMS3-PublicSubnet-2-${AWS::Region}
+      Name: CMS3PublicSubnet2
 
   PrivateSubnetId1:
     Description: Private Subnet 1 ID
     Value: !Ref CMS3PrivateSubnet1
     Export:
-      Name: !Sub CMS3-PrivateSubnet-1-${AWS::Region}
+      Name: CMS3PrivateSubnet1
 
   PrivateSubnetId2:
     Description: Private Subnet 2 ID
     Value: !Ref CMS3PrivateSubnet2
     Export:
-      Name: !Sub CMS3-PrivateSubnet-2-${AWS::Region}
+      Name: CMS3PrivateSubnet2
 
   NATGatewayId:
     Description: NAT Gateway ID
