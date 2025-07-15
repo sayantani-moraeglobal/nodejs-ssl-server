@@ -6,9 +6,6 @@ phases:
       - echo Logging into Docker Hub...
       - echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
-      - GIT_SHA=$(git rev-parse HEAD)
-      - echo "🔍 Current Git SHA: $GIT_SHA"
-
       - echo Logging into ECR in all target regions...
       - REGIONS="us-east-1 ap-southeast-1"
       - |
