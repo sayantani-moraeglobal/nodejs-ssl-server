@@ -89,8 +89,8 @@ Resources:
       SecurityGroups:
         - !Ref CMS3ALBSecurityGroup
       Subnets:
-        - !ImportValue "CMS3-PublicSubnet-1-${AWS::Region}"
-        - !ImportValue "CMS3-PublicSubnet-2-${AWS::Region}"
+        - !ImportValue "CMS3PublicSubnet1"
+        - !ImportValue "CMS3PublicSubnet2"
       Scheme: internet-facing
       Type: application
 
