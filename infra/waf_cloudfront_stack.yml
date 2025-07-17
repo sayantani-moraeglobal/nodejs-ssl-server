@@ -66,8 +66,8 @@ Resources:
     Properties:
       DistributionConfig:
         Origins:
-          - Id: CMS3ALBLoadBalancer  
-            DomainName: !ImportValue !Sub CMS3-ALB-DNS-${RegionName}
+          - Id: CMS3ApplicationLoadBalancer  
+            DomainName: !ImportValue CMS3-ALB-DNS
             OriginPath: ''
             CustomOriginConfig:
               HTTPPort: 8080
@@ -75,7 +75,7 @@ Resources:
               OriginProtocolPolicy: http-only
         Enabled: true
         DefaultCacheBehavior:
-          TargetOriginId: CMS3ALBLoadBalancer
+          TargetOriginId: CMS3ApplicationLoadBalancer
           ViewerProtocolPolicy: redirect-to-https
           ForwardedValues:
             QueryString: false
