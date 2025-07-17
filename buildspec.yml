@@ -69,8 +69,10 @@ phases:
             --stack-name ecs-stack-$REGION \
             --template-file infra/ecs_stack.yml \
             --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
               KeyName=$KEY_NAME \
               TargetGroupExportName=CMSNodejsTargetGroup || exit 1
+
 
           if [ "$REGION" = "us-east-1" ]; then
             echo "🚀 Deploying CloudFront + WAF Stack globally from $REGION..."
