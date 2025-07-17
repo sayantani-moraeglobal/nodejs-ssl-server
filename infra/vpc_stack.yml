@@ -167,7 +167,7 @@ Outputs:
     Description: CMS3 VPC ID
     Value: !Ref CMS3VPC
     Export:
-      Name: !Sub CMS3-VPC-ID-${AWS::Region}
+      Name: CMS3VPC
 
   PublicSubnetId1:
     Description: Public Subnet 1 ID
@@ -197,4 +197,4 @@ Outputs:
     Description: NAT Gateway ID
     Value: !Ref CMS3NATGateway
     Export:
-      Name: !Sub CMS3-NAT-Gateway-ID-${AWS::Region}
+      Name: CMS3NATGateway
