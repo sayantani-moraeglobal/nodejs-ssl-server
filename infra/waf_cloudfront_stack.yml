@@ -1,12 +1,5 @@
-#WAF+CloudFront Template
----
 AWSTemplateFormatVersion: "2010-09-09"
 Description: CloudFormation Template for WAF and CloudFront (ALB origin)
-
-Parameters:
-  RegionName:
-    Type: String
-    Description: Region used in Export names (e.g., us-east-1, ap-south-1)
 
 Resources:
   CMS3CloudFrontWebACL:
@@ -67,7 +60,7 @@ Resources:
       DistributionConfig:
         Origins:
           - Id: CMS3ApplicationLoadBalancer  
-            DomainName: !ImportValue CMS3-ALB-DNS
+            DomainName: !ImportValue !Sub CMS3-ALB-DNS-${AWS::Region}
             OriginPath: ''
             CustomOriginConfig:
               HTTPPort: 8080
