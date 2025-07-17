@@ -130,3 +130,9 @@ Outputs:
     Value: !Ref CMS3ApplicationLoadBalancer
     Export:
       Name: CMS3ApplicationLoadBalancer
+
+  CMS3ALBDNSName:
+    Description: DNS Name of the Application Load Balancer
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: CMS3-ALB-DNS
