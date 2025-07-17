@@ -1,7 +1,5 @@
-# ecs template
----
 AWSTemplateFormatVersion: "2010-09-09"
-Description: ECS Cluster on EC2 with ALB Integration
+Description: ECS Cluster on EC2 with ALB Integration (Instance Target Type)
 
 Parameters:
   RegionName:
@@ -10,7 +8,7 @@ Parameters:
 
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
-    Description: EC2 key pair name for SSH access (passed via CodeBuild env vars)
+    Description: EC2 key pair name for SSH access
 
   ECSAMI:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
@@ -25,7 +23,7 @@ Resources:
   EC2InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow traffic from ALB
+      GroupDescription: Allow traffic from ALB and SSH
       VpcId: !ImportValue CMS3VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -50,11 +48,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
-        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
-        - arn:aws:iam::aws:policy/AmazonElasticContainerRegistryPublicReadOnly
 
   ECSInstanceRole:
     Type: AWS::IAM::Role
@@ -89,7 +83,7 @@ Resources:
             #!/bin/bash
             echo ECS_CLUSTER=CMS3TestEC2Cluster >> /etc/ecs/ecs.config
         SecurityGroupIds:
-          - !ImportValue CMS3ALBSecurityGroup
+          - !Ref EC2InstanceSecurityGroup
         KeyName: !Ref KeyName
 
   CMS3ECSAutoScalingGroup:
@@ -99,8 +93,8 @@ Resources:
       MaxSize: '2'
       DesiredCapacity: '1'
       VPCZoneIdentifier:
-        - !ImportValue "CMS3PrivateSubnet1"
-        - !ImportValue "CMS3PrivateSubnet2"
+        - !ImportValue CMS3PrivateSubnet1
+        - !ImportValue CMS3PrivateSubnet2
       LaunchTemplate:
         LaunchTemplateId: !Ref ECSLaunchTemplate
         Version: !GetAtt ECSLaunchTemplate.LatestVersionNumber
@@ -111,7 +105,7 @@ Resources:
       Family: nodejs-service-td
       RequiresCompatibilities:
         - EC2
-      NetworkMode: awsvpc
+      NetworkMode: bridge  # ✅ Use bridge mode for EC2 with instance target group
       Cpu: 1024
       Memory: 3072
       ExecutionRoleArn: !GetAtt ecsTaskExecutionRole.Arn
@@ -125,7 +119,6 @@ Resources:
             - ContainerPort: 8080
               HostPort: 8080
               Protocol: tcp
-              AppProtocol: http
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -141,14 +134,6 @@ Resources:
       ServiceName: NodejsService
       LaunchType: EC2
       DesiredCount: 1
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !ImportValue "CMS3PrivateSubnet1"
-            - !ImportValue "CMS3PrivateSubnet2"
-          SecurityGroups:
-            - !Ref EC2InstanceSecurityGroup
-          AssignPublicIp: DISABLED
       LoadBalancers:
         - ContainerName: nodejs
           ContainerPort: 8080
