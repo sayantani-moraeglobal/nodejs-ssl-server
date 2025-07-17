@@ -1,76 +1,47 @@
 version: 0.2
 
 phases:
-  install:
-    runtime-versions:
-      python: 3.11
-    commands:
-      - echo Installing prerequisites...
-      - pip install --upgrade awscli
-
   build:
     commands:
-      - echo "🔁 Starting multi-region deployment..."
+      - echo "Starting multi-region deployment..."
+      - REGIONS="us-east-1 ap-southeast-1"
+      - for REGION in $REGIONS; do
+          echo "Deploying to region: $REGION";
 
-      - |
-        REGIONS=("us-east-1" "ap-southeast-1")
-        for REGION in "${REGIONS[@]}"; do
-          echo "========================================"
-          echo "🌍 Working in region: $REGION"
-          echo "========================================"
-
-          echo "🔧 Deploying VPC stack..."
-          aws cloudformation deploy \
-            --region "$REGION" \
-            --stack-name "vpc-stack-$REGION" \
-            --template-file infra/vpc_template.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides VpcName=CMS3VPC || exit 1
-
-          echo "🔍 Checking if ALB stack already exists in $REGION..."
-          if aws cloudformation describe-stacks --region "$REGION" --stack-name "alb-stack-$REGION" >/dev/null 2>&1; then
-            echo "✅ ALB stack already exists in $REGION. Skipping ALB deployment."
-          else
-            echo "🚀 Deploying ALB stack in $REGION..."
+          # VPC Stack
+          if ! aws cloudformation describe-stacks --region $REGION --stack-name CMS3-VPC-Stack-$REGION >/dev/null 2>&1; then
             aws cloudformation deploy \
-              --region "$REGION" \
-              --stack-name "alb-stack-$REGION" \
-              --template-file infra/alb_stack.yml \
+              --template-file vpc_template.yaml \
+              --stack-name CMS3-VPC-Stack-$REGION \
+              --region $REGION \
               --capabilities CAPABILITY_NAMED_IAM \
-              --parameter-overrides RegionName="$REGION" || exit 1
+              --parameter-overrides RegionName=$REGION;
+          else
+            echo "VPC stack already exists in $REGION, skipping...";
           fi
 
-          echo "🔍 Checking if ECS stack already exists in $REGION..."
-          if aws cloudformation describe-stacks --region "$REGION" --stack-name "ecs-stack-$REGION" >/dev/null 2>&1; then
-            echo "✅ ECS stack already exists in $REGION. Skipping ECS deployment."
-          else
-            echo "🚀 Deploying ECS stack in $REGION..."
+          # ALB Stack
+          if ! aws cloudformation describe-stacks --region $REGION --stack-name CMS3-ALB-Stack-$REGION >/dev/null 2>&1; then
             aws cloudformation deploy \
-              --region "$REGION" \
-              --stack-name "ecs-stack-$REGION" \
-              --template-file infra/ecs_stack.yml \
+              --template-file alb_stack.yaml \
+              --stack-name CMS3-ALB-Stack-$REGION \
+              --region $REGION \
               --capabilities CAPABILITY_NAMED_IAM \
-              --parameter-overrides \
-                  RegionName="$REGION" \
-                  KeyName=cms-ec2-key \
-                  TargetGroupExportName=CMSNodejsTargetGroup || exit 1
+              --parameter-overrides RegionName=$REGION;
+          else
+            echo "ALB stack already exists in $REGION, skipping...";
+          fi
+
+          # ECS Stack
+          if ! aws cloudformation describe-stacks --region $REGION --stack-name CMS3-ECS-EC2-Stack-$REGION >/dev/null 2>&1; then
+            aws cloudformation deploy \
+              --template-file ecs_stack.yaml \
+              --stack-name CMS3-ECS-EC2-Stack-$REGION \
+              --region $REGION \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameter-overrides RegionName=$REGION KeyName=my-key-name;
+          else
+            echo "ECS stack already exists in $REGION, skipping...";
           fi
 
         done
-
-      - echo "🛡️ Deploying WAF + CloudFront stack (only in us-east-1)..."
-      - |
-        if aws cloudformation describe-stacks --region us-east-1 --stack-name waf-cloudfront-stack >/dev/null 2>&1; then
-          echo "✅ WAF/CloudFront stack already exists in us-east-1. Skipping deployment."
-        else
-          aws cloudformation deploy \
-            --region us-east-1 \
-            --stack-name waf-cloudfront-stack \
-            --template-file infra/waf_cloudfront_stack.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides RegionName=us-east-1 || exit 1
-        fi
-
-artifacts:
-  files:
-    - '**/*'
