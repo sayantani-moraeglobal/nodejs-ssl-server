@@ -4,9 +4,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: ECS Cluster on EC2 with ALB Integration
 
 Parameters:
-  # RegionName:
-  #   Type: String
-  #   Description: Region name used in export names (e.g., us-east-1, ap-south-1)
+  RegionName:
+    Type: String
+    Description: Region name used in export names (e.g., us-east-1, ap-south-1)
 
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
