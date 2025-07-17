@@ -1,47 +1,126 @@
 version: 0.2
 
+env:
+  variables:
+    REGIONS: "us-east-1 ap-southeast-1"
+
 phases:
+  pre_build:
+    commands:
+      - echo Logging into Docker Hub...
+      - echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+      - echo Logging into ECR in all target regions...
+      - |
+        for REGION in $REGIONS; do
+          echo "Logging into ECR in $REGION..."
+          aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com || exit 1
+        done
+
   build:
     commands:
-      - echo "Starting multi-region deployment..."
-      - REGIONS="us-east-1 ap-southeast-1"
-      - for REGION in $REGIONS; do
-          echo "Deploying to region: $REGION";
+      - set -e
+      - echo Building Docker image...
+      - docker build -t example-nodejs .
 
-          # VPC Stack
-          if ! aws cloudformation describe-stacks --region $REGION --stack-name CMS3-VPC-Stack-$REGION >/dev/null 2>&1; then
-            aws cloudformation deploy \
-              --template-file vpc_template.yaml \
-              --stack-name CMS3-VPC-Stack-$REGION \
-              --region $REGION \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --parameter-overrides RegionName=$REGION;
-          else
-            echo "VPC stack already exists in $REGION, skipping...";
-          fi
-
-          # ALB Stack
-          if ! aws cloudformation describe-stacks --region $REGION --stack-name CMS3-ALB-Stack-$REGION >/dev/null 2>&1; then
-            aws cloudformation deploy \
-              --template-file alb_stack.yaml \
-              --stack-name CMS3-ALB-Stack-$REGION \
-              --region $REGION \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --parameter-overrides RegionName=$REGION;
-          else
-            echo "ALB stack already exists in $REGION, skipping...";
-          fi
-
-          # ECS Stack
-          if ! aws cloudformation describe-stacks --region $REGION --stack-name CMS3-ECS-EC2-Stack-$REGION >/dev/null 2>&1; then
-            aws cloudformation deploy \
-              --template-file ecs_stack.yaml \
-              --stack-name CMS3-ECS-EC2-Stack-$REGION \
-              --region $REGION \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --parameter-overrides RegionName=$REGION KeyName=my-key-name;
-          else
-            echo "ECS stack already exists in $REGION, skipping...";
-          fi
-
+      - echo Tagging and pushing Docker image to ECR in all regions...
+      - |
+        for REGION in $REGIONS; do
+          IMAGE_URI="722136401996.dkr.ecr.$REGION.amazonaws.com/example-nodejs:latest"
+          docker tag example-nodejs:latest $IMAGE_URI
+          docker push $IMAGE_URI
         done
+
+      - echo Deploying VPC stacks in all regions...
+      - |
+        for REGION in $REGIONS; do
+          echo "Checking VPC stack in $REGION..."
+          VPC_STATUS=$(aws cloudformation describe-stacks \
+            --region $REGION \
+            --stack-name vpc-stack-$REGION \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$VPC_STATUS" = "CREATE_IN_PROGRESS" ]; then
+            echo "⚠️ VPC stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
+            continue
+          elif [ "$VPC_STATUS" = "CREATE_COMPLETE" ]; then
+            echo "✅ VPC stack in $REGION already exists. Skipping..."
+          else
+            echo "🚀 Deploying VPC Stack in $REGION..."
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name vpc-stack-$REGION \
+              --template-file infra/vpc_stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM || exit 1
+          fi
+        done
+
+      - echo Deploying ALB and ECS stacks in all regions...
+      - |
+        for REGION in $REGIONS; do
+
+          echo "Checking ALB stack in $REGION..."
+          ALB_STATUS=$(aws cloudformation describe-stacks \
+            --region $REGION \
+            --stack-name alb-stack-$REGION \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$ALB_STATUS" = "CREATE_COMPLETE" ]; then
+            echo "✅ ALB stack in $REGION already exists. Skipping..."
+          else
+            echo "🚀 Deploying ALB Stack in $REGION..."
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name alb-stack-$REGION \
+              --template-file infra/alb_stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM || exit 1
+          fi
+
+          echo "Checking ECS stack in $REGION..."
+          ECS_STATUS=$(aws cloudformation describe-stacks \
+            --region $REGION \
+            --stack-name ecs-stack-$REGION \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$ECS_STATUS" = "CREATE_COMPLETE" ]; then
+            echo "✅ ECS stack in $REGION already exists. Skipping..."
+          else
+            echo "🚀 Deploying ECS Stack in $REGION..."
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name ecs-stack-$REGION \
+              --template-file infra/ecs_stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameter-overrides \
+                RegionName="$REGION" \
+                KeyName="$KEY_NAME" \
+                TargetGroupExportName="CMSNodejsTargetGroup" || exit 1
+          fi
+
+          if [ "$REGION" = "us-east-1" ]; then
+            echo "Checking CloudFront + WAF stack in $REGION..."
+            CF_STATUS=$(aws cloudformation describe-stacks \
+              --region $REGION \
+              --stack-name waf-cloudfront-stack \
+              --query 'Stacks[0].StackStatus' \
+              --output text 2>/dev/null || echo "NOT_FOUND")
+
+            if [ "$CF_STATUS" = "CREATE_COMPLETE" ]; then
+              echo "✅ WAF + CloudFront stack already exists. Skipping..."
+            else
+              echo "🚀 Deploying CloudFront + WAF Stack in $REGION..."
+              aws cloudformation deploy \
+                --region $REGION \
+                --stack-name waf-cloudfront-stack \
+                --template-file infra/waf_cloudfront_stack.yml \
+                --capabilities CAPABILITY_NAMED_IAM || exit 1
+            fi
+          fi
+        done
+
+artifacts:
+  files:
+    - '**/*'
