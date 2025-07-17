@@ -3,10 +3,10 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: ALB stack including Security Group, ALB, Target Groups, and Listeners
 
-Parameters:
-  RegionName:
-    Type: String
-    Description: Region name to import VPC-related exports (e.g., us-east-1, ap-south-1)
+# Parameters:
+#   RegionName:
+#     Type: String
+#     Description: Region name to import VPC-related exports (e.g., us-east-1, ap-south-1)
 
 Resources:
   CMS3ALBSecurityGroup:
