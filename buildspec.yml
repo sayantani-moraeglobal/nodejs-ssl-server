@@ -69,7 +69,6 @@ phases:
             --stack-name ecs-stack-$REGION \
             --template-file infra/ecs_stack.yml \
             --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides \
               KeyName=$KEY_NAME \
               TargetGroupExportName=CMSNodejsTargetGroup || exit 1
 
