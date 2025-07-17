@@ -72,7 +72,7 @@ phases:
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               KeyName=$KEY_NAME \
-              TargetGroupExportName=CMS3TGNodejs || exit 1
+              TargetGroupExportName=CMSNodejsTargetGroup || exit 1
 
           if [ "$REGION" = "us-east-1" ]; then
             echo "🚀 Deploying CloudFront + WAF Stack globally from $REGION..."
