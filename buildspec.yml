@@ -1,5 +1,9 @@
 version: 0.2
 
+env:
+  variables:
+    REGIONS: "us-east-1 ap-southeast-1"
+
 phases:
   pre_build:
     commands:
@@ -7,7 +11,6 @@ phases:
       - echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
       - echo Logging into ECR in all target regions...
-      - REGIONS="us-east-1 ap-southeast-1"
       - |
         for REGION in $REGIONS; do
           echo "Logging into ECR in $REGION..."
@@ -70,10 +73,9 @@ phases:
             --template-file infra/ecs_stack.yml \
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
-              RegionName=$REGION
-              KeyName=$KEY_NAME \
-              TargetGroupExportName=CMSNodejsTargetGroup || exit 1
-
+              RegionName="$REGION" \
+              KeyName="$KEY_NAME" \
+              TargetGroupExportName="CMSNodejsTargetGroup" || exit 1
 
           if [ "$REGION" = "us-east-1" ]; then
             echo "🚀 Deploying CloudFront + WAF Stack globally from $REGION..."
