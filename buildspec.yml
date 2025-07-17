@@ -11,7 +11,7 @@ phases:
       - |
         for REGION in $REGIONS; do
           echo "Logging into ECR in $REGION..."
-          aws ecr get-login-password --region $REGION |             docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com || exit 1
+          aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com || exit 1
         done
 
   build:
@@ -32,7 +32,11 @@ phases:
       - |
         for REGION in $REGIONS; do
           echo "Checking VPC stack in $REGION..."
-          VPC_STATUS=$(aws cloudformation describe-stacks             --region $REGION             --stack-name vpc-stack-$REGION             --query 'Stacks[0].StackStatus'             --output text 2>/dev/null || echo "NOT_FOUND")
+          VPC_STATUS=$(aws cloudformation describe-stacks \
+            --region $REGION \
+            --stack-name vpc-stack-$REGION \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
 
           if [ "$VPC_STATUS" = "CREATE_IN_PROGRESS" ]; then
             echo "⚠️ VPC stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
@@ -41,30 +45,42 @@ phases:
             echo "✅ VPC stack in $REGION already exists. Skipping..."
           else
             echo "🚀 Deploying VPC Stack in $REGION..."
-            aws cloudformation deploy               --region $REGION               --stack-name vpc-stack-$REGION               --template-file infra/vpc_stack.yml               --capabilities CAPABILITY_NAMED_IAM || exit 1
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name vpc-stack-$REGION \
+              --template-file infra/vpc_stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM || exit 1
           fi
         done
 
       - echo Deploying ALB and ECS stacks in all regions...
       - |
         for REGION in $REGIONS; do
-          EXPORT_NAME="CMS3-PublicSubnet-2-$REGION"
-          EXPORT_EXISTS=$(aws cloudformation list-exports --region $REGION             --query "Exports[?Name=='$EXPORT_NAME'].Name" --output text)
-
-          if [ -z "$EXPORT_EXISTS" ]; then
-            echo "❌ Export $EXPORT_NAME not found in $REGION. Skipping ALB and ECS stack..."
-            continue
-          fi
-
           echo "🚀 Deploying ALB Stack in $REGION..."
-          aws cloudformation deploy             --region $REGION             --stack-name alb-stack-$REGION             --template-file infra/alb_stack.yml             --capabilities CAPABILITY_NAMED_IAM             --parameter-overrides RegionName=$REGION || exit 1
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name alb-stack-$REGION \
+            --template-file infra/alb_stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides RegionName=$REGION || exit 1
 
           echo "🚀 Deploying ECS Stack in $REGION..."
-          aws cloudformation deploy             --region $REGION             --stack-name ecs-stack-$REGION             --template-file infra/ecs_stack.yml             --capabilities CAPABILITY_NAMED_IAM             --parameter-overrides               KeyName=$KEY_NAME               TargetGroupExportName=CMS3-TG-Nodejs-$REGION || exit 1
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name ecs-stack-$REGION \
+            --template-file infra/ecs_stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              KeyName=$KEY_NAME \
+              TargetGroupExportName=CMS3TGNodejs || exit 1
 
           if [ "$REGION" = "us-east-1" ]; then
             echo "🚀 Deploying CloudFront + WAF Stack globally from $REGION..."
-            aws cloudformation deploy               --region $REGION               --stack-name waf-cloudfront-stack               --template-file infra/waf_cloudfront_stack.yml               --capabilities CAPABILITY_NAMED_IAM || exit 1
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name waf-cloudfront-stack \
+              --template-file infra/waf_cloudfront_stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM || exit 1
           fi
         done
 
