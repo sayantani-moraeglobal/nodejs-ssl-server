@@ -26,12 +26,12 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow traffic from ALB
-      VpcId: !ImportValue !Sub CMS3-VPC-ID-${RegionName}
+      VpcId: !ImportValue CMS3VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 8080
           ToPort: 8080
-          SourceSecurityGroupId: !ImportValue !Sub CMS3-ALB-SG-${RegionName}
+          SourceSecurityGroupId: !ImportValue CMS3ALBSecurityGroup
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -89,7 +89,7 @@ Resources:
             #!/bin/bash
             echo ECS_CLUSTER=CMS3TestEC2Cluster >> /etc/ecs/ecs.config
         SecurityGroupIds:
-          - !ImportValue !Sub CMS3-ALB-SG-${RegionName}
+          - !ImportValue CMS3ALBSecurityGroup
         KeyName: !Ref KeyName
 
   CMS3ECSAutoScalingGroup:
@@ -99,8 +99,8 @@ Resources:
       MaxSize: '2'
       DesiredCapacity: '1'
       VPCZoneIdentifier:
-        - !ImportValue !Sub CMS3-PrivateSubnet-1-${RegionName}
-        - !ImportValue !Sub CMS3-PrivateSubnet-2-${RegionName}
+        - !ImportValue "CMS3PriavteSubnet1"
+        - !ImportValue "CMS3PriavteSubnet2"
       LaunchTemplate:
         LaunchTemplateId: !Ref ECSLaunchTemplate
         Version: !GetAtt ECSLaunchTemplate.LatestVersionNumber
@@ -144,13 +144,13 @@ Resources:
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
-            - !ImportValue !Sub CMS3-PrivateSubnet-1-${RegionName}
-            - !ImportValue !Sub CMS3-PrivateSubnet-2-${RegionName}
+            - !ImportValue "CMS3PriavteSubnet1"
+            - !ImportValue "CMS3PriavteSubnet2"
           SecurityGroups:
             - !Ref EC2InstanceSecurityGroup
           AssignPublicIp: DISABLED
       LoadBalancers:
         - ContainerName: nodejs
           ContainerPort: 8080
-          TargetGroupArn: !ImportValue !Sub CMS3-NodejsTargetGroup-${RegionName}
+          TargetGroupArn: !ImportValue CMSNodejsTargetGroup
       TaskDefinition: !Ref NodejsTaskDefinition
