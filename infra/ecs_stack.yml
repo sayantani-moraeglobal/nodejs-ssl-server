@@ -99,8 +99,8 @@ Resources:
       MaxSize: '2'
       DesiredCapacity: '1'
       VPCZoneIdentifier:
-        - !ImportValue "CMS3PriavteSubnet1"
-        - !ImportValue "CMS3PriavteSubnet2"
+        - !ImportValue "CMS3PrivateSubnet1"
+        - !ImportValue "CMS3PrivateSubnet2"
       LaunchTemplate:
         LaunchTemplateId: !Ref ECSLaunchTemplate
         Version: !GetAtt ECSLaunchTemplate.LatestVersionNumber
