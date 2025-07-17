@@ -61,8 +61,7 @@ phases:
             --region $REGION \
             --stack-name alb-stack-$REGION \
             --template-file infra/alb_stack.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides RegionName=$REGION || exit 1
+            --capabilities CAPABILITY_NAMED_IAM || exit 1
 
           echo "🚀 Deploying ECS Stack in $REGION..."
           aws cloudformation deploy \
