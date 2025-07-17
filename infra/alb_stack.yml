@@ -135,4 +135,4 @@ Outputs:
     Description: DNS Name of the Application Load Balancer
     Value: !GetAtt ApplicationLoadBalancer.DNSName
     Export:
-      Name: Name: !Sub CMS3-ALB-DNS-${AWS::Region}
+      Name: !Sub CMS3-ALB-DNS-${AWS::Region}
