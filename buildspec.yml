@@ -60,6 +60,15 @@ phases:
       - |
         for REGION in $REGIONS; do
 
+          # Dynamically select certificate ARN
+          if [ "$REGION" = "us-east-1" ]; then
+            CERT_ARN=$CERT_ARN_US_EAST_1
+          elif [ "$REGION" = "ap-southeast-1" ]; then
+            CERT_ARN=$CERT_ARN_AP_SOUTHEAST_1
+          fi
+
+          echo "Using certificate: $CERT_ARN"
+
           echo "Checking ALB stack in $REGION..."
           ALB_STATUS=$(aws cloudformation describe-stacks \
             --region $REGION \
@@ -75,7 +84,8 @@ phases:
               --region $REGION \
               --stack-name alb-stack-$REGION \
               --template-file infra/alb_stack.yml \
-              --capabilities CAPABILITY_NAMED_IAM || exit 1
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameter-overrides SSLCertificateArn=$CERT_ARN || exit 1
           fi
 
           echo "Checking ECS stack in $REGION..."
