@@ -60,7 +60,9 @@ Resources:
       DistributionConfig:
         Origins:
           - Id: CMS3ApplicationLoadBalancer  
-            DomainName: !ImportValue !Sub CMS3-ALB-DNS-${AWS::Region}
+            DomainName:
+              Fn::ImportValue:
+                Fn::Sub: CMS3-ALB-DNS-${AWS::Region}
             OriginPath: ''
             CustomOriginConfig:
               HTTPPort: 8080
