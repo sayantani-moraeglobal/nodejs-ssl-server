@@ -3,11 +3,10 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: ALB stack including Security Group, ALB, Target Groups, and Listeners
 
-# Parameters:
-#   RegionName:
-#     Type: String
-#     Description: Region name to import VPC-related exports (e.g., us-east-1, ap-south-1)
-
+Parameters:
+  SSLCertificateArn:
+    Type: String
+   
 Resources:
   CMS3ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -100,7 +99,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref CMS3HTTPSTargetGroup
       Certificates:
-        - CertificateArn: arn:aws:acm:us-east-1:722136401996:certificate/44fa3ab7-f45f-493c-9be0-20936f308f26
+        - CertificateArn: !Ref SSLCertificateArn
 
   CMS3NodejsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
