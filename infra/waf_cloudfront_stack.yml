@@ -1,6 +1,12 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: CloudFormation Template for WAF and CloudFront with two ALBs as origins
 
+Parameters:
+  ALBDNSUSEast1:
+    Type: String
+  ALBDNSAPSoutheast1:
+    Type: String
+
 Resources:
   CMS3CloudFrontWebACL:
     Type: AWS::WAFv2::WebACL
@@ -57,16 +63,14 @@ Resources:
       DistributionConfig:
         Origins:
           - Id: ALBOriginUSEast1
-            DomainName:
-              !ImportValue CMS3-ALB-DNS-us-east-1
+            DomainName: !Ref ALBDNSUSEast1
             CustomOriginConfig:
               HTTPPort: 8080
               HTTPSPort: 443
               OriginProtocolPolicy: http-only
 
           - Id: ALBOriginAPSoutheast1
-            DomainName:
-              !ImportValue CMS3-ALB-DNS-ap-southeast-1
+            DomainName: !Ref ALBDNSAPSoutheast1
             CustomOriginConfig:
               HTTPPort: 8080
               HTTPSPort: 443
