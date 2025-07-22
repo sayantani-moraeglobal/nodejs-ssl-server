@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: CloudFormation Template for WAF and CloudFront (ALB origin)
+Description: CloudFormation Template for WAF and CloudFront with two ALBs as origins
 
 Resources:
   CMS3CloudFrontWebACL:
@@ -17,8 +17,7 @@ Resources:
       Rules:
         - Name: AWS-AmazonIPReputationList
           Priority: 0
-          OverrideAction:
-            None: {}
+          OverrideAction: { None: {} }
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
@@ -30,26 +29,24 @@ Resources:
 
         - Name: AWS-CommonRuleSet
           Priority: 1
-          OverrideAction: 
-            None: {}
-          VisibilityConfig: 
+          OverrideAction: { None: {} }
+          VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: AWS-CommonRuleSet
-          Statement: 
+          Statement:
             ManagedRuleGroupStatement:
               VendorName: AWS
               Name: AWSManagedRulesCommonRuleSet
 
         - Name: AWS-KnownBadInputsRuleSet
           Priority: 2
-          OverrideAction: 
-            None: {}
-          VisibilityConfig: 
+          OverrideAction: { None: {} }
+          VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: AWS-KnownBadInputsRuleSet
-          Statement: 
+          Statement:
             ManagedRuleGroupStatement:
               VendorName: AWS
               Name: AWSManagedRulesKnownBadInputsRuleSet
@@ -59,26 +56,45 @@ Resources:
     Properties:
       DistributionConfig:
         Origins:
-          - Id: CMS3ApplicationLoadBalancer  
+          - Id: ALBOriginUSEast1
             DomainName:
-              Fn::ImportValue:
-                Fn::Sub: CMS3-ALB-DNS-${AWS::Region}
-            OriginPath: ''
+              !ImportValue CMS3-ALB-DNS-us-east-1
             CustomOriginConfig:
               HTTPPort: 8080
               HTTPSPort: 443
               OriginProtocolPolicy: http-only
+
+          - Id: ALBOriginAPSoutheast1
+            DomainName:
+              !ImportValue CMS3-ALB-DNS-ap-southeast-1
+            CustomOriginConfig:
+              HTTPPort: 8080
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
+
         Enabled: true
         DefaultCacheBehavior:
-          TargetOriginId: CMS3ApplicationLoadBalancer
+          TargetOriginId: ALBOriginUSEast1
           ViewerProtocolPolicy: redirect-to-https
           ForwardedValues:
             QueryString: false
             Cookies:
               Forward: none
+
+        CacheBehaviors:
+          - PathPattern: "/apac/*"
+            TargetOriginId: ALBOriginAPSoutheast1
+            ViewerProtocolPolicy: redirect-to-https
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
+
         WebACLId: !GetAtt CMS3CloudFrontWebACL.Arn
+
         ViewerCertificate:
           AcmCertificateArn: arn:aws:acm:us-east-1:722136401996:certificate/44fa3ab7-f45f-493c-9be0-20936f308f26
           SslSupportMethod: sni-only
           MinimumProtocolVersion: TLSv1.2_2021
+
         PriceClass: PriceClass_100
