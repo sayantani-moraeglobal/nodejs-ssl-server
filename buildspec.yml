@@ -20,7 +20,6 @@ phases:
   build:
     commands:
       - set -e
-
       - echo Building Docker image...
       - docker build -t example-nodejs .
 
@@ -60,16 +59,6 @@ phases:
       - echo Deploying ALB and ECS stacks in all regions...
       - |
         for REGION in $REGIONS; do
-
-          # Select certificate ARN dynamically
-          if [ "$REGION" = "us-east-1" ]; then
-            CERT_ARN=$CERT_ARN_US_EAST_1
-          elif [ "$REGION" = "ap-southeast-1" ]; then
-            CERT_ARN=$CERT_ARN_AP_SOUTHEAST_1
-          fi
-
-          echo "Using certificate: $CERT_ARN"
-
           echo "Checking ALB stack in $REGION..."
           ALB_STATUS=$(aws cloudformation describe-stacks \
             --region $REGION \
@@ -77,7 +66,10 @@ phases:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          if [ "$ALB_STATUS" = "CREATE_COMPLETE" ]; then
+          if [ "$ALB_STATUS" = "CREATE_IN_PROGRESS" ]; then
+            echo "⚠️ ALB stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
+            continue
+          elif [ "$ALB_STATUS" = "CREATE_COMPLETE" ]; then
             echo "✅ ALB stack in $REGION already exists. Skipping..."
           else
             echo "🚀 Deploying ALB Stack in $REGION..."
@@ -85,8 +77,7 @@ phases:
               --region $REGION \
               --stack-name alb-stack-$REGION \
               --template-file infra/alb_stack.yml \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --parameter-overrides SSLCertificateArn=$CERT_ARN || exit 1
+              --capabilities CAPABILITY_NAMED_IAM || exit 1
           fi
 
           echo "Checking ECS stack in $REGION..."
@@ -96,7 +87,10 @@ phases:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          if [ "$ECS_STATUS" = "CREATE_COMPLETE" ]; then
+          if [ "$ECS_STATUS" = "CREATE_IN_PROGRESS" ]; then
+            echo "⚠️ ECS stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
+            continue
+          elif [ "$ECS_STATUS" = "CREATE_COMPLETE" ]; then
             echo "✅ ECS stack in $REGION already exists. Skipping..."
           else
             echo "🚀 Deploying ECS Stack in $REGION..."
@@ -106,13 +100,13 @@ phases:
               --template-file infra/ecs_stack.yml \
               --capabilities CAPABILITY_NAMED_IAM \
               --parameter-overrides \
-                RegionName="$REGION" \
-                KeyName="$KEY_NAME" \
-                TargetGroupExportName="CMSNodejsTargetGroup" || exit 1
+                RegionName=$REGION \
+                KeyName=$KEY_NAME \
+                TargetGroupExportName=CMSNodejsTargetGroup || exit 1
           fi
         done
 
-      - echo "🔍 Fetching ALB DNS names from both regions..."
+      - echo "Retrieving ALB DNS values from both regions..."
       - |
         ALB_DNS_US_EAST_1=$(aws cloudformation list-exports \
           --region us-east-1 \
@@ -124,40 +118,21 @@ phases:
           --query "Exports[?Name=='CMS3-ALB-DNS-ap-southeast-1'].Value" \
           --output text)
 
-        echo "✅ ALB DNS (us-east-1): $ALB_DNS_US_EAST_1"
-        echo "✅ ALB DNS (ap-southeast-1): $ALB_DNS_AP_SOUTHEAST_1"
+        echo "ALB DNS us-east-1: $ALB_DNS_US_EAST_1"
+        echo "ALB DNS ap-southeast-1: $ALB_DNS_AP_SOUTHEAST_1"
 
-      - echo "🚀 Deploying CloudFront + WAF Stacks in all regions..."
+      - echo Deploying CloudFront + WAF stacks regionally...
       - |
         for REGION in $REGIONS; do
-          echo "Checking CloudFront + WAF stack in $REGION..."
-
-          # Pick correct ALB DNS for the region
-          if [ "$REGION" = "us-east-1" ]; then
-            ALB_DNS="$ALB_DNS_US_EAST_1"
-          elif [ "$REGION" = "ap-southeast-1" ]; then
-            ALB_DNS="$ALB_DNS_AP_SOUTHEAST_1"
-          fi
-
-          CF_STACK_NAME="waf-cloudfront-stack-$REGION"
-
-          CF_STATUS=$(aws cloudformation describe-stacks \
+          echo "🚀 Deploying CloudFront + WAF Stack in $REGION..."
+          aws cloudformation deploy \
             --region $REGION \
-            --stack-name $CF_STACK_NAME \
-            --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null || echo "NOT_FOUND")
-
-          if [ "$CF_STATUS" = "CREATE_COMPLETE" ]; then
-            echo "✅ CloudFront + WAF stack in $REGION already exists. Skipping..."
-          else
-            echo "🚀 Deploying CloudFront + WAF Stack in $REGION..."
-            aws cloudformation deploy \
-              --region $REGION \
-              --stack-name $CF_STACK_NAME \
-              --template-file infra/waf_cloudfront_stack.yml \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --parameter-overrides ALBDNS=$ALB_DNS || exit 1
-          fi
+            --stack-name waf-cloudfront-stack-$REGION \
+            --template-file infra/waf_cloudfront_stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              ALBDNSUSEast1=$ALB_DNS_US_EAST_1 \
+              ALBDNSAPSoutheast1=$ALB_DNS_AP_SOUTHEAST_1 || exit 1
         done
 
 artifacts:
