@@ -127,26 +127,38 @@ phases:
         echo "✅ ALB DNS (us-east-1): $ALB_DNS_US_EAST_1"
         echo "✅ ALB DNS (ap-southeast-1): $ALB_DNS_AP_SOUTHEAST_1"
 
-      - echo "🚀 Deploying CloudFront + WAF Stack in us-east-1..."
+      - echo "🚀 Deploying CloudFront + WAF Stacks in all regions..."
       - |
-        CF_STATUS=$(aws cloudformation describe-stacks \
-          --region us-east-1 \
-          --stack-name waf-cloudfront-stack \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "NOT_FOUND")
+        for REGION in $REGIONS; do
+          echo "Checking CloudFront + WAF stack in $REGION..."
 
-        if [ "$CF_STATUS" = "CREATE_COMPLETE" ]; then
-          echo "✅ WAF + CloudFront stack already exists. Skipping..."
-        else
-          aws cloudformation deploy \
-            --region us-east-1 \
-            --stack-name waf-cloudfront-stack \
-            --template-file infra/waf_cloudfront_stack.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides \
-              ALBDNSUSEast1=$ALB_DNS_US_EAST_1 \
-              ALBDNSAPSoutheast1=$ALB_DNS_AP_SOUTHEAST_1 || exit 1
-        fi
+          # Pick correct ALB DNS for the region
+          if [ "$REGION" = "us-east-1" ]; then
+            ALB_DNS="$ALB_DNS_US_EAST_1"
+          elif [ "$REGION" = "ap-southeast-1" ]; then
+            ALB_DNS="$ALB_DNS_AP_SOUTHEAST_1"
+          fi
+
+          CF_STACK_NAME="waf-cloudfront-stack-$REGION"
+
+          CF_STATUS=$(aws cloudformation describe-stacks \
+            --region $REGION \
+            --stack-name $CF_STACK_NAME \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$CF_STATUS" = "CREATE_COMPLETE" ]; then
+            echo "✅ CloudFront + WAF stack in $REGION already exists. Skipping..."
+          else
+            echo "🚀 Deploying CloudFront + WAF Stack in $REGION..."
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name $CF_STACK_NAME \
+              --template-file infra/waf_cloudfront_stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameter-overrides ALBDNS=$ALB_DNS || exit 1
+          fi
+        done
 
 artifacts:
   files:
