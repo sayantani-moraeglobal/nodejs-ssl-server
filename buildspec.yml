@@ -41,10 +41,10 @@ phases:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          if [ "$VPC_STATUS" = "CREATE_IN_PROGRESS" ]; then
-            echo "⚠️ VPC stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
+          if [[ "$VPC_STATUS" == "CREATE_IN_PROGRESS" || "$VPC_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            echo "⚠️ VPC stack is in $VPC_STATUS in $REGION. Skipping..."
             continue
-          elif [ "$VPC_STATUS" = "CREATE_COMPLETE" ]; then
+          elif [[ "$VPC_STATUS" == "CREATE_COMPLETE" || "$VPC_STATUS" == "UPDATE_COMPLETE" ]]; then
             echo "✅ VPC stack in $REGION already exists. Skipping..."
           else
             echo "🚀 Deploying VPC Stack in $REGION..."
@@ -52,7 +52,8 @@ phases:
               --region $REGION \
               --stack-name vpc-stack-$REGION \
               --template-file infra/vpc_stack.yml \
-              --capabilities CAPABILITY_NAMED_IAM || exit 1
+              --capabilities CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset || exit 1
           fi
         done
 
@@ -66,10 +67,10 @@ phases:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          if [ "$ALB_STATUS" = "CREATE_IN_PROGRESS" ]; then
-            echo "⚠️ ALB stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
+          if [[ "$ALB_STATUS" == "CREATE_IN_PROGRESS" || "$ALB_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            echo "⚠️ ALB stack is in $ALB_STATUS in $REGION. Skipping..."
             continue
-          elif [ "$ALB_STATUS" = "CREATE_COMPLETE" ]; then
+          elif [[ "$ALB_STATUS" == "CREATE_COMPLETE" || "$ALB_STATUS" == "UPDATE_COMPLETE" ]]; then
             echo "✅ ALB stack in $REGION already exists. Skipping..."
           else
             echo "🚀 Deploying ALB Stack in $REGION..."
@@ -78,6 +79,7 @@ phases:
               --stack-name alb-stack-$REGION \
               --template-file infra/alb_stack.yml \
               --capabilities CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset \
               --parameter-overrides \
                 VpcExportName=CMS3VPC \
                 PublicSubnet1ExportName=CMS3PublicSubnet1 \
@@ -94,10 +96,10 @@ phases:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          if [ "$ECS_STATUS" = "CREATE_IN_PROGRESS" ]; then
-            echo "⚠️ ECS stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
+          if [[ "$ECS_STATUS" == "CREATE_IN_PROGRESS" || "$ECS_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            echo "⚠️ ECS stack is in $ECS_STATUS in $REGION. Skipping..."
             continue
-          elif [ "$ECS_STATUS" = "CREATE_COMPLETE" ]; then
+          elif [[ "$ECS_STATUS" == "CREATE_COMPLETE" || "$ECS_STATUS" == "UPDATE_COMPLETE" ]]; then
             echo "✅ ECS stack in $REGION already exists. Skipping..."
           else
             echo "🚀 Deploying ECS Stack in $REGION..."
@@ -106,6 +108,7 @@ phases:
               --stack-name ecs-stack-$REGION \
               --template-file infra/ecs_stack.yml \
               --capabilities CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset \
               --parameter-overrides \
                 RegionName=$REGION \
                 KeyName=$KEY_NAME \
@@ -137,6 +140,7 @@ phases:
             --stack-name waf-cloudfront-stack-$REGION \
             --template-file infra/waf_cloudfront_stack.yml \
             --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
             --parameter-overrides \
               ALBDNSUSEast1=$ALB_DNS_US_EAST_1 \
               ALBDNSAPSoutheast1=$ALB_DNS_AP_SOUTHEAST_1 || exit 1
