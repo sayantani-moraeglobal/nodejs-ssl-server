@@ -77,7 +77,14 @@ phases:
               --region $REGION \
               --stack-name alb-stack-$REGION \
               --template-file infra/alb_stack.yml \
-              --capabilities CAPABILITY_NAMED_IAM || exit 1
+              --capabilities CAPABILITY_NAMED_IAM
+              --parameter-overrides \
+                VpcExportName=CMS3VPC \
+                PublicSubnet1ExportName=CMS3PublicSubnet1 \
+                PublicSubnet2ExportName=CMS3PublicSubnet2 \
+                SSLCertificateArn=$SSLCERTIFICATEARN \
+                TargetGroupExportName=CMSNodejsTargetGroup \
+                ALBDNSExportName=CMS3-ALB-DNS-$REGION || exit 1
           fi
 
           echo "Checking ECS stack in $REGION..."
