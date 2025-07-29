@@ -46,15 +46,16 @@ phases:
             continue
           elif [[ "$VPC_STATUS" == "CREATE_COMPLETE" || "$VPC_STATUS" == "UPDATE_COMPLETE" ]]; then
             echo "✅ VPC stack in $REGION already exists. Skipping..."
-          else
-            echo "🚀 Deploying VPC Stack in $REGION..."
-            aws cloudformation deploy \
-              --region $REGION \
-              --stack-name vpc-stack-$REGION \
-              --template-file infra/vpc_stack.yml \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --no-fail-on-empty-changeset || exit 1
+            continue
           fi
+
+          echo "🚀 Deploying VPC Stack in $REGION..."
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name vpc-stack-$REGION \
+            --template-file infra/vpc_stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset || exit 1
         done
 
       - echo Deploying ALB and ECS stacks in all regions...
@@ -72,22 +73,28 @@ phases:
             continue
           elif [[ "$ALB_STATUS" == "CREATE_COMPLETE" || "$ALB_STATUS" == "UPDATE_COMPLETE" ]]; then
             echo "✅ ALB stack in $REGION already exists. Skipping..."
-          else
-            echo "🚀 Deploying ALB Stack in $REGION..."
-            aws cloudformation deploy \
-              --region $REGION \
-              --stack-name alb-stack-$REGION \
-              --template-file infra/alb_stack.yml \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --no-fail-on-empty-changeset \
-              --parameter-overrides \
-                VpcExportName=CMS3VPC \
-                PublicSubnet1ExportName=CMS3PublicSubnet1 \
-                PublicSubnet2ExportName=CMS3PublicSubnet2 \
-                SSLCertificateArn=$SSLCERTIFICATEARN \
-                TargetGroupExportName=CMSNodejsTargetGroup \
-                ALBDNSExportName=CMS3-ALB-DNS-$REGION || exit 1
+            continue
           fi
+
+          if [[ -z "$SSLCERTIFICATEARN" ]]; then
+            echo "❌ SSLCERTIFICATEARN is empty! Cannot deploy ALB stack in $REGION"
+            exit 1
+          fi
+
+          echo "🚀 Deploying ALB Stack in $REGION..."
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name alb-stack-$REGION \
+            --template-file infra/alb_stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              VpcExportName=CMS3VPC \
+              PublicSubnet1ExportName=CMS3PublicSubnet1 \
+              PublicSubnet2ExportName=CMS3PublicSubnet2 \
+              SSLCertificateArn=$SSLCERTIFICATEARN \
+              TargetGroupExportName=CMSNodejsTargetGroup \
+              ALBDNSExportName=CMS3-ALB-DNS-$REGION || exit 1
 
           echo "Checking ECS stack in $REGION..."
           ECS_STATUS=$(aws cloudformation describe-stacks \
@@ -101,19 +108,20 @@ phases:
             continue
           elif [[ "$ECS_STATUS" == "CREATE_COMPLETE" || "$ECS_STATUS" == "UPDATE_COMPLETE" ]]; then
             echo "✅ ECS stack in $REGION already exists. Skipping..."
-          else
-            echo "🚀 Deploying ECS Stack in $REGION..."
-            aws cloudformation deploy \
-              --region $REGION \
-              --stack-name ecs-stack-$REGION \
-              --template-file infra/ecs_stack.yml \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --no-fail-on-empty-changeset \
-              --parameter-overrides \
-                RegionName=$REGION \
-                KeyName=$KEY_NAME \
-                TargetGroupExportName=CMSNodejsTargetGroup || exit 1
+            continue
           fi
+
+          echo "🚀 Deploying ECS Stack in $REGION..."
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name ecs-stack-$REGION \
+            --template-file infra/ecs_stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              RegionName=$REGION \
+              KeyName=$KEY_NAME \
+              TargetGroupExportName=CMSNodejsTargetGroup || exit 1
         done
 
       - echo "Retrieving ALB DNS values from both regions..."
