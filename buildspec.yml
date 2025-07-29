@@ -3,105 +3,145 @@ version: 0.2
 env:
   variables:
     REGIONS: "us-east-1 ap-southeast-1"
-    KEY_NAME: "cms-ec2-key"
-    TARGET_GROUP_EXPORT: "CMSNodejsTargetGroup"
-    VPC_EXPORT_NAME: "CMS3VPC"
-    PUBLIC_SUBNET1_EXPORT: "CMS3PublicSubnet1"
-    PUBLIC_SUBNET2_EXPORT: "CMS3PublicSubnet2"
 
 phases:
-  install:
-    runtime-versions:
-      nodejs: 20
   pre_build:
     commands:
-      - echo Logging in to DockerHub...
+      - echo Logging into Docker Hub...
       - echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
       - echo Logging into ECR in all target regions...
       - |
         for REGION in $REGIONS; do
-          aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
+          echo "Logging into ECR in $REGION..."
+          aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin 722136401996.dkr.ecr.$REGION.amazonaws.com || exit 1
         done
 
   build:
     commands:
-      - echo "🚀 Deploying VPC Stack..."
+      - set -e
+      - echo Building Docker image...
+      - docker build -t example-nodejs .
+
+      - echo Tagging and pushing Docker image to ECR in all regions...
       - |
         for REGION in $REGIONS; do
-          echo "Deploying VPC in $REGION"
-          aws cloudformation deploy \
+          IMAGE_URI="722136401996.dkr.ecr.$REGION.amazonaws.com/example-nodejs:latest"
+          docker tag example-nodejs:latest $IMAGE_URI
+          docker push $IMAGE_URI
+        done
+
+      - echo Deploying VPC stacks in all regions...
+      - |
+        for REGION in $REGIONS; do
+          echo "Checking VPC stack in $REGION..."
+          VPC_STATUS=$(aws cloudformation describe-stacks \
             --region $REGION \
             --stack-name vpc-stack-$REGION \
-            --template-file infra/vpc_template.yaml \
-            --capabilities CAPABILITY_NAMED_IAM || exit 1
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$VPC_STATUS" = "CREATE_IN_PROGRESS" ]; then
+            echo "⚠️ VPC stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
+            continue
+          elif [ "$VPC_STATUS" = "CREATE_COMPLETE" ]; then
+            echo "✅ VPC stack in $REGION already exists. Skipping..."
+          else
+            echo "🚀 Deploying VPC Stack in $REGION..."
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name vpc-stack-$REGION \
+              --template-file infra/vpc_stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM || exit 1
+          fi
         done
 
-      - echo "🚀 Deploying ALB Stack..."
+      - echo Deploying ALB and ECS stacks in all regions...
       - |
         for REGION in $REGIONS; do
-          echo "Checking if ALB stack exists in $REGION..."
-          STACK_EXISTS=$(aws cloudformation describe-stacks --region $REGION --stack-name alb-stack-$REGION --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
-          if [ "$STACK_EXISTS" != "NOT_FOUND" ]; then
-            echo "✅ ALB Stack already exists in $REGION, skipping..."
-            continue
-          fi
-
-          if [ "$REGION" = "us-east-1" ]; then
-            SSLCERTIFICATEARN="arn:aws:acm:us-east-1:722136401996:certificate/xxxxxxxxxxxxxxxx"
-          elif [ "$REGION" = "ap-southeast-1" ]; then
-            SSLCERTIFICATEARN="arn:aws:acm:ap-southeast-1:722136401996:certificate/yyyyyyyyyyyyyyyy"
-          fi
-
-          echo "Deploying ALB in $REGION"
-          aws cloudformation deploy \
+          echo "Checking ALB stack in $REGION..."
+          ALB_STATUS=$(aws cloudformation describe-stacks \
             --region $REGION \
             --stack-name alb-stack-$REGION \
-            --template-file infra/alb_stack.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides \
-              VpcExportName=$VPC_EXPORT_NAME \
-              PublicSubnet1ExportName=$PUBLIC_SUBNET1_EXPORT \
-              PublicSubnet2ExportName=$PUBLIC_SUBNET2_EXPORT \
-              SSLCertificateArn=$SSLCERTIFICATEARN \
-              TargetGroupExportName=$TARGET_GROUP_EXPORT \
-              ALBDNSExportName=CMS3-ALB-DNS-$REGION || exit 1
-        done
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
 
-      - echo "🚀 Deploying ECS Stack..."
-      - |
-        for REGION in $REGIONS; do
-          echo "Checking if ECS stack exists in $REGION..."
-          STACK_EXISTS=$(aws cloudformation describe-stacks --region $REGION --stack-name ecs-stack-$REGION --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
-          if [ "$STACK_EXISTS" != "NOT_FOUND" ]; then
-            echo "✅ ECS Stack already exists in $REGION, skipping..."
+          if [ "$ALB_STATUS" = "CREATE_IN_PROGRESS" ]; then
+            echo "⚠️ ALB stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
             continue
+          elif [ "$ALB_STATUS" = "CREATE_COMPLETE" ]; then
+            echo "✅ ALB stack in $REGION already exists. Skipping..."
+          else
+            echo "🚀 Deploying ALB Stack in $REGION..."
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name alb-stack-$REGION \
+              --template-file infra/alb_stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameter-overrides \
+                VpcExportName=CMS3VPC \
+                PublicSubnet1ExportName=CMS3PublicSubnet1 \
+                PublicSubnet2ExportName=CMS3PublicSubnet2 \
+                SSLCertificateArn=$SSLCERTIFICATEARN \
+                TargetGroupExportName=CMSNodejsTargetGroup \
+                ALBDNSExportName=CMS3-ALB-DNS-$REGION || exit 1
           fi
 
-          echo "Deploying ECS in $REGION"
-          aws cloudformation deploy \
+          echo "Checking ECS stack in $REGION..."
+          ECS_STATUS=$(aws cloudformation describe-stacks \
             --region $REGION \
             --stack-name ecs-stack-$REGION \
-            --template-file infra/ecs_stack.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides \
-              KeyName=$KEY_NAME \
-              TargetGroupExportName=$TARGET_GROUP_EXPORT || exit 1
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$ECS_STATUS" = "CREATE_IN_PROGRESS" ]; then
+            echo "⚠️ ECS stack is in CREATE_IN_PROGRESS in $REGION. Skipping..."
+            continue
+          elif [ "$ECS_STATUS" = "CREATE_COMPLETE" ]; then
+            echo "✅ ECS stack in $REGION already exists. Skipping..."
+          else
+            echo "🚀 Deploying ECS Stack in $REGION..."
+            aws cloudformation deploy \
+              --region $REGION \
+              --stack-name ecs-stack-$REGION \
+              --template-file infra/ecs_stack.yml \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameter-overrides \
+                RegionName=$REGION \
+                KeyName=$KEY_NAME \
+                TargetGroupExportName=CMSNodejsTargetGroup || exit 1
+          fi
         done
 
-      - echo "🚀 Deploying CloudFront + WAF..."
+      - echo "Retrieving ALB DNS values from both regions..."
       - |
-        echo "Getting ALB DNS names from both regions..."
-        ALB_DNS_USEAST1=$(aws cloudformation list-exports --region us-east-1 --query "Exports[?Name=='CMS3-ALB-DNS-us-east-1'].Value" --output text)
-        ALB_DNS_APSOUTHEAST1=$(aws cloudformation list-exports --region ap-southeast-1 --query "Exports[?Name=='CMS3-ALB-DNS-ap-southeast-1'].Value" --output text)
+        ALB_DNS_US_EAST_1=$(aws cloudformation list-exports \
+          --region us-east-1 \
+          --query "Exports[?Name=='CMS3-ALB-DNS-us-east-1'].Value" \
+          --output text)
 
+        ALB_DNS_AP_SOUTHEAST_1=$(aws cloudformation list-exports \
+          --region ap-southeast-1 \
+          --query "Exports[?Name=='CMS3-ALB-DNS-ap-southeast-1'].Value" \
+          --output text)
+
+        echo "ALB DNS us-east-1: $ALB_DNS_US_EAST_1"
+        echo "ALB DNS ap-southeast-1: $ALB_DNS_AP_SOUTHEAST_1"
+
+      - echo Deploying CloudFront + WAF stacks regionally...
+      - |
         for REGION in $REGIONS; do
-          echo "Deploying CloudFront + WAF in $REGION..."
+          echo "🚀 Deploying CloudFront + WAF Stack in $REGION..."
           aws cloudformation deploy \
             --region $REGION \
             --stack-name waf-cloudfront-stack-$REGION \
             --template-file infra/waf_cloudfront_stack.yml \
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
-              ALBDNSUSEast1=$ALB_DNS_USEAST1 \
-              ALBDNSAPSoutheast1=$ALB_DNS_APSOUTHEAST1 || exit 1
+              ALBDNSUSEast1=$ALB_DNS_US_EAST_1 \
+              ALBDNSAPSoutheast1=$ALB_DNS_AP_SOUTHEAST_1 || exit 1
         done
+
+artifacts:
+  files:
+    - '**/*'
