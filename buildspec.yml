@@ -41,8 +41,11 @@ phases:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          if [[ "$VPC_STATUS" =~ "COMPLETE" || "$VPC_STATUS" =~ "IN_PROGRESS" ]]; then
-            echo "✅ Skipping VPC stack in $REGION. Status: $VPC_STATUS"
+          if [[ "$VPC_STATUS" == "CREATE_IN_PROGRESS" || "$VPC_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            echo "⚠️ VPC stack is in $VPC_STATUS in $REGION. Skipping..."
+            continue
+          elif [[ "$VPC_STATUS" == "CREATE_COMPLETE" || "$VPC_STATUS" == "UPDATE_COMPLETE" ]]; then
+            echo "✅ VPC stack in $REGION already exists. Skipping..."
             continue
           fi
 
@@ -65,11 +68,15 @@ phases:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          if [[ "$ALB_STATUS" =~ "COMPLETE" || "$ALB_STATUS" =~ "IN_PROGRESS" ]]; then
-            echo "✅ Skipping ALB stack in $REGION. Status: $ALB_STATUS"
+          if [[ "$ALB_STATUS" == "CREATE_IN_PROGRESS" || "$ALB_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            echo "⚠️ ALB stack is in $ALB_STATUS in $REGION. Skipping..."
+            continue
+          elif [[ "$ALB_STATUS" == "CREATE_COMPLETE" || "$ALB_STATUS" == "UPDATE_COMPLETE" ]]; then
+            echo "✅ ALB stack in $REGION already exists. Skipping..."
             continue
           fi
 
+          # Map certificate ARN for each region
           if [[ "$REGION" == "us-east-1" ]]; then
             CERT_ARN=$CERT_ARN_US_EAST_1
           elif [[ "$REGION" == "ap-southeast-1" ]]; then
@@ -77,8 +84,8 @@ phases:
           fi
 
           if [[ -z "$CERT_ARN" ]]; then
-            echo "❌ SSLCertificateArn is not set for $REGION. Skipping ALB stack."
-            continue
+            echo "❌ SSL Certificate ARN is empty for $REGION!"
+            exit 1
           fi
 
           echo "🚀 Deploying ALB Stack in $REGION..."
@@ -103,8 +110,11 @@ phases:
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          if [[ "$ECS_STATUS" =~ "COMPLETE" || "$ECS_STATUS" =~ "IN_PROGRESS" ]]; then
-            echo "✅ Skipping ECS stack in $REGION. Status: $ECS_STATUS"
+          if [[ "$ECS_STATUS" == "CREATE_IN_PROGRESS" || "$ECS_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            echo "⚠️ ECS stack is in $ECS_STATUS in $REGION. Skipping..."
+            continue
+          elif [[ "$ECS_STATUS" == "CREATE_COMPLETE" || "$ECS_STATUS" == "UPDATE_COMPLETE" ]]; then
+            echo "✅ ECS stack in $REGION already exists. Skipping..."
             continue
           fi
 
@@ -121,7 +131,7 @@ phases:
               TargetGroupExportName=CMSNodejsTargetGroup || exit 1
         done
 
-      - echo "Retrieving ALB DNS values from both regions..."
+      - echo Retrieving ALB DNS values from both regions...
       - |
         ALB_DNS_US_EAST_1=$(aws cloudformation list-exports \
           --region us-east-1 \
@@ -136,17 +146,20 @@ phases:
         echo "ALB DNS us-east-1: $ALB_DNS_US_EAST_1"
         echo "ALB DNS ap-southeast-1: $ALB_DNS_AP_SOUTHEAST_1"
 
-      - echo Deploying CloudFront + WAF stack in us-east-1 only...
+      - echo Deploying CloudFront + WAF stacks in all regions...
       - |
-        aws cloudformation deploy \
-          --region us-east-1 \
-          --stack-name waf-cloudfront-stack-us-east-1 \
-          --template-file infra/waf_cloudfront_stack.yml \
-          --capabilities CAPABILITY_NAMED_IAM \
-          --no-fail-on-empty-changeset \
-          --parameter-overrides \
-            ALBDNSUSEast1=$ALB_DNS_US_EAST_1 \
-            ALBDNSAPSoutheast1=$ALB_DNS_AP_SOUTHEAST_1 || exit 1
+        for REGION in $REGIONS; do
+          echo "🚀 Deploying CloudFront + WAF Stack in $REGION..."
+          aws cloudformation deploy \
+            --region $REGION \
+            --stack-name waf-cloudfront-stack-$REGION \
+            --template-file infra/waf_cloudfront_stack.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              ALBDNSUSEast1=$ALB_DNS_US_EAST_1 \
+              ALBDNSAPSoutheast1=$ALB_DNS_AP_SOUTHEAST_1 || exit 1
+        done
 
 artifacts:
   files:
