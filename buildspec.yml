@@ -14,11 +14,15 @@ phases:
       - echo "🔐 Logging into DockerHub..."
       - echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
+      - echo "🔍 Retrieving AWS Account ID..."
+      - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
       - echo "🔐 Logging into ECR in all target regions..."
       - |
         for REGION in $REGIONS; do
           aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
         done
+
 
   build:
     commands:
