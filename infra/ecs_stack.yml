@@ -14,6 +14,10 @@ Parameters:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
 
+  ECSInstanceRole:
+    Type: String
+    Description: IAM Role ARN for ECS instances
+
 Resources:
   CMS3TestEC2Cluster:
     Type: AWS::ECS::Cluster
@@ -50,19 +54,19 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
 
-  ECSInstanceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: ECSInstanceRole
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+  # ECSInstanceRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: ECSInstanceRole
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: ec2.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
 
   ECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile
