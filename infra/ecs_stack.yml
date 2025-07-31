@@ -16,7 +16,7 @@ Parameters:
 
   ECSInstanceRole:
     Type: String
-    Description: IAM Role ARN for ECS instances
+    Description: IAM Role Name for ECS instances
 
 Resources:
   CMS3TestEC2Cluster:
