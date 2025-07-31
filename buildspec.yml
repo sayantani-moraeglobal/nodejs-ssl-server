@@ -108,6 +108,7 @@ phases:
               --parameter-overrides \
                 RegionName="$REGION" \
                 KeyName="$KEY_NAME" \
+                ECSInstanceRole=$ECS_INSTANCE_ROLE
                 TargetGroupExportName="CMSNodejsTargetGroup" || exit 1
           fi
         done
