@@ -42,7 +42,6 @@ jobs:
           # Save for later steps
           echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
 
-      # Update ECS service with new image
       - name: Update ECS service with new image
         run: |
           CLUSTER_NAME=CMS3TestEC2Cluster     # change this
@@ -58,16 +57,20 @@ jobs:
           # Fetch latest task definition
           TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
 
-          # Replace the container image
+          # Build a new task definition JSON with updated image
           NEW_TASK_DEF=$(echo "$TASK_DEF" | \
             jq --arg IMAGE_URI "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
-            '.taskDefinition 
-            | .containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end) 
-            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+            '.taskDefinition
+            | .containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy)')
+
+          # Save JSON to a temp file
+          echo "$NEW_TASK_DEF" > new-task-def.json
 
           # Register new revision
-          NEW_TASK_DEF_ARN=$(echo "$NEW_TASK_DEF" | \
-            aws ecs register-task-definition --cli-input-json file:///dev/stdin | jq -r '.taskDefinition.taskDefinitionArn')
+          REGISTER_OUTPUT=$(aws ecs register-task-definition --cli-input-json file://new-task-def.json)
+          NEW_TASK_DEF_ARN=$(echo "$REGISTER_OUTPUT" | jq -r '.taskDefinition.taskDefinitionArn')
 
           echo "✅ Registered new task definition: $NEW_TASK_DEF_ARN"
 
