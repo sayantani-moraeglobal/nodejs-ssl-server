@@ -1,0 +1,80 @@
+name: Deploy to ECS
+
+on:
+  push:
+    branches:
+      - main   # deploy only when pushing to main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout source code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1   # change if needed
+
+      # Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Build and push Docker image
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG=latest   # or use ${{ github.sha }} for unique tags
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY=example-nodejs   # change to your repo name
+          FULL_IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          echo "🚀 Building image: $FULL_IMAGE"
+          docker build -t $FULL_IMAGE .
+          docker push $FULL_IMAGE
+
+          # Save for later steps
+          echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
+
+      # Update ECS service with new image
+      - name: Update ECS service with new image
+        run: |
+          CLUSTER_NAME=CMS3TestEC2Cluster     # change this
+          SERVICE_NAME=nodejs-service         # change this
+          TASK_FAMILY=nodejs-service-td       # your ECS task family
+          CONTAINER_NAME=nodejs-container     # the container name inside your task definition
+          IMAGE_URI=$FULL_IMAGE               # use the just-pushed image
+
+          echo "🔍 Using task family: $TASK_FAMILY"
+          echo "🔍 Updating container: $CONTAINER_NAME"
+          echo "🔍 New image: $IMAGE_URI"
+
+          # Fetch latest task definition
+          TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
+
+          # Replace the container image
+          NEW_TASK_DEF=$(echo "$TASK_DEF" | \
+            jq --arg IMAGE_URI "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
+            '.taskDefinition 
+            | .containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end) 
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+
+          # Register new revision
+          NEW_TASK_DEF_ARN=$(echo "$NEW_TASK_DEF" | \
+            aws ecs register-task-definition --cli-input-json file:///dev/stdin | jq -r '.taskDefinition.taskDefinitionArn')
+
+          echo "✅ Registered new task definition: $NEW_TASK_DEF_ARN"
+
+          # Update ECS service to use new task definition
+          aws ecs update-service \
+            --cluster $CLUSTER_NAME \
+            --service $SERVICE_NAME \
+            --task-definition $NEW_TASK_DEF_ARN
+
+          echo "🎉 Deployment triggered. ECS will now pull the new image."
