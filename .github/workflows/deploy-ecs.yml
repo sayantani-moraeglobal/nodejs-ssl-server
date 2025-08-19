@@ -42,7 +42,7 @@ jobs:
           # Save for later steps
           echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
 
-      - name: Update ECS service with new image
+            - name: Update ECS service with new image
         run: |
           CLUSTER_NAME=CMS3TestEC2Cluster     # change this
           SERVICE_NAME=nodejs-service         # change this
@@ -54,22 +54,25 @@ jobs:
           echo "🔍 Updating container: $CONTAINER_NAME"
           echo "🔍 New image: $IMAGE_URI"
 
-          # Fetch latest task definition
-          TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
+          # Fetch latest task definition (just the .taskDefinition block)
+          aws ecs describe-task-definition \
+            --task-definition $TASK_FAMILY \
+            --query 'taskDefinition' > task-def.json
 
-          # Build a new task definition JSON with updated image
-          NEW_TASK_DEF=$(echo "$TASK_DEF" | \
-            jq --arg IMAGE_URI "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
-            '.taskDefinition
-            | .containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end)
-            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
-                  .compatibilities, .registeredAt, .registeredBy)')
+          # Replace container image
+          jq --arg IMAGE_URI "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
+            '.containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end)
+             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                   .compatibilities, .registeredAt, .registeredBy)' \
+            task-def.json > new-task-def.json
 
-          # Save JSON to a temp file
-          echo "$NEW_TASK_DEF" > new-task-def.json
+          # Debug: print new JSON so we know it's valid
+          cat new-task-def.json
 
           # Register new revision
-          REGISTER_OUTPUT=$(aws ecs register-task-definition --cli-input-json file://new-task-def.json)
+          REGISTER_OUTPUT=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-def.json)
+
           NEW_TASK_DEF_ARN=$(echo "$REGISTER_OUTPUT" | jq -r '.taskDefinition.taskDefinitionArn')
 
           echo "✅ Registered new task definition: $NEW_TASK_DEF_ARN"
