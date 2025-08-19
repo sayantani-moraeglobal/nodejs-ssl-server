@@ -59,16 +59,19 @@ jobs:
 
           # Replace the container image
           NEW_TASK_DEF=$(echo "$TASK_DEF" | \
-            jq --arg IMAGE_URI "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
-            '.taskDefinition 
-            | .containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end) 
-            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          jq --arg IMAGE_URI "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
+          '.taskDefinition
+          | .containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end)
+          | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
 
-          # Register new revision
-          NEW_TASK_DEF_ARN=$(echo "$NEW_TASK_DEF" | \
-            aws ecs register-task-definition --cli-input-json file:///dev/stdin | jq -r '.taskDefinition.taskDefinitionArn')
+          # Save to file
+          echo "$NEW_TASK_DEF" > new-task-def.json
 
-          echo "✅ Registered new task definition: $NEW_TASK_DEF_ARN"
+          # Register
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-def.json \
+            | jq -r '.taskDefinition.taskDefinitionArn')
+
 
           # Update ECS service to use new task definition
           aws ecs update-service \
