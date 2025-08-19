@@ -1,15 +1,16 @@
-name: Deploy to Amazon ECS
+name: Deploy to Amazon ECS (Fargate)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Configure AWS credentials
@@ -19,35 +20,30 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Get AWS Account ID
-        id: aws_account
-        run: |
-          echo "AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
-
       - name: Log in to Amazon ECR
+        id: login-ecr
         run: |
-          aws ecr get-login-password --region us-east-1 | \
-          docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
 
-      - name: Build and push Docker image
+      - name: Build, tag, and push Docker image
+        id: build-image
         run: |
           IMAGE_REPO_NAME=example-nodejs
           IMAGE_TAG=latest
-          FULL_IMAGE=$AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
-          echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
-
-          echo "🚀 Building Docker image..."
+          FULL_IMAGE=${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+          
+          echo "🔨 Building image: $FULL_IMAGE"
           docker build -t $FULL_IMAGE .
-
-          echo "📤 Pushing Docker image..."
           docker push $FULL_IMAGE
+
+          echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
 
       - name: Update ECS service with new image
         run: |
-          CLUSTER_NAME=CMS3TestEC2Cluster
-          SERVICE_NAME=nodejs-service
-          TASK_FAMILY=nodejs-service-td
-          CONTAINER_NAME=nodejs-container
+          CLUSTER_NAME=CMS3TestEC2Cluster       # Your ECS cluster name
+          SERVICE_NAME=nodejs-service           # Your ECS service name
+          TASK_FAMILY=nodejs-service-td         # Your ECS task family name
+          CONTAINER_NAME=nodejs-container       # Container name in the task definition
           IMAGE_URI=$FULL_IMAGE
 
           echo "🔍 Using task family: $TASK_FAMILY"
@@ -57,16 +53,21 @@ jobs:
           # Fetch latest task definition
           TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
 
-          # Replace the container image
+          # Replace container image
           NEW_TASK_DEF=$(echo "$TASK_DEF" | \
             jq --arg IMAGE_URI "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
             '.taskDefinition 
             | .containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end) 
             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
 
-          # Register new revision
-          NEW_TASK_DEF_ARN=$(echo "$NEW_TASK_DEF" | \
-            aws ecs register-task-definition --cli-input-json file:///dev/stdin | jq -r '.taskDefinition.taskDefinitionArn')
+          # Save JSON to file for debugging
+          echo "$NEW_TASK_DEF" | jq . > new-task-def.json
+          echo "📄 New task definition written to new-task-def.json"
+
+          # Register new task definition
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-def.json \
+            | jq -r '.taskDefinition.taskDefinitionArn')
 
           echo "✅ Registered new task definition: $NEW_TASK_DEF_ARN"
 
@@ -76,4 +77,4 @@ jobs:
             --service $SERVICE_NAME \
             --task-definition $NEW_TASK_DEF_ARN
 
-          echo "🎉 Deployment triggered. ECS will now pull the new image."
+          echo "🎉 Deployment triggered. ECS Fargate will now pull the new image."
