@@ -43,7 +43,7 @@ jobs:
           echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
 
       # Update ECS service with new image
-      - name: Update ECS service with new image
+      - name: Update ECS service
         run: |
           CLUSTER_NAME=CMS3TestEC2Cluster     # change this
           SERVICE_NAME=nodejs-service         # change this
@@ -55,20 +55,20 @@ jobs:
           echo "🔍 Updating container: $CONTAINER_NAME"
           echo "🔍 New image: $IMAGE_URI"
 
-          # Fetch latest task definition (just the .taskDefinition block)
+          # Fetch latest task definition
           aws ecs describe-task-definition \
             --task-definition $TASK_FAMILY \
             --query 'taskDefinition' > task-def.json
 
-          # Replace container image
+          # Replace container image + ensure networkMode=bridge (for EC2)
           jq --arg IMAGE_URI "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
             '.containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end)
+             | .networkMode = "bridge"
              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
                    .compatibilities, .registeredAt, .registeredBy)' \
             task-def.json > new-task-def.json
 
-          # Debug: print new JSON so we know it's valid
-          cat new-task-def.json
+          cat new-task-def.json  # debug
 
           # Register new revision
           REGISTER_OUTPUT=$(aws ecs register-task-definition \
@@ -78,7 +78,7 @@ jobs:
 
           echo "✅ Registered new task definition: $NEW_TASK_DEF_ARN"
 
-          # Update ECS service to use new task definition
+          # Update ECS service (no network config needed for EC2)
           aws ecs update-service \
             --cluster $CLUSTER_NAME \
             --service $SERVICE_NAME \
