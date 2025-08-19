@@ -78,7 +78,8 @@ jobs:
             --cluster $CLUSTER_NAME \
             --service $SERVICE_NAME \
             --task-definition $NEW_TASK_DEF_ARN
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-0aa741e64984c0740,subnet-0685f17332e84ed7b],securityGroups=[sg-09110da60bd9bde68],assignPublicIp=ENABLED}"
+            --network-configuration "awsvpcConfiguration={subnets=[\"subnet-0aa741e64984c0740\",\"subnet-0685f17332e84ed7b\"],securityGroups=[\"sg-09110da60bd9bde68\"],assignPublicIp=\"ENABLED\"}"
+
 
           echo "🎉 Deployment triggered. ECS will now pull the new image."
 
