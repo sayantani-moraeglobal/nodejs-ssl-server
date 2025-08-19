@@ -77,3 +77,4 @@ jobs:
             --task-definition $NEW_TASK_DEF_ARN
 
           echo "🎉 Deployment triggered. ECS will now pull the new image."
+
