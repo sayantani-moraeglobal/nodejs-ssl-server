@@ -2,7 +2,7 @@ version: 0.2
 
 env:
   variables:
-    AWS_REGION: "us-east-1"   # Change this to your target region
+    AWS_REGION: "us-west-2"   # Change this to your target region
 
 phases:
   pre_build:
