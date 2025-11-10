@@ -1,4 +1,4 @@
-name: Deploy to Amazon ECS
+name: Deploy Node.js + NGINX to Amazon ECS
 
 on:
   push:
@@ -29,57 +29,74 @@ jobs:
           aws ecr get-login-password --region us-east-1 | \
           docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
 
-      - name: Build and push Docker image
+      - name: Build and push Docker images
         run: |
-          IMAGE_REPO_NAME=example-nodejs
-          IMAGE_TAG=latest
-          FULL_IMAGE=$AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
-          echo "FULL_IMAGE=$FULL_IMAGE" >> $GITHUB_ENV
+          # Node.js image
+          NODEJS_IMAGE_REPO=example-nodejs
+          NODEJS_IMAGE_TAG=v1.1.0
+          NODEJS_FULL_IMAGE=$AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/$NODEJS_IMAGE_REPO:$NODEJS_IMAGE_TAG
+          echo "NODEJS_FULL_IMAGE=$NODEJS_FULL_IMAGE" >> $GITHUB_ENV
 
-          echo "🚀 Building Docker image..."
-          docker build -t $FULL_IMAGE .
+          echo "🚀 Building Node.js image..."
+          docker build -t $NODEJS_FULL_IMAGE ./nodejs
+          echo "📤 Pushing Node.js image..."
+          docker push $NODEJS_FULL_IMAGE
 
-          echo "📤 Pushing Docker image..."
-          docker push $FULL_IMAGE
+          # NGINX image
+          NGINX_IMAGE_REPO=example-nginx
+          NGINX_IMAGE_TAG=v1.0.0
+          NGINX_FULL_IMAGE=$AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/$NGINX_IMAGE_REPO:$NGINX_IMAGE_TAG
+          echo "NGINX_FULL_IMAGE=$NGINX_FULL_IMAGE" >> $GITHUB_ENV
 
-      - name: Update ECS service with new image
+          echo "🚀 Building NGINX image..."
+          docker build -t $NGINX_FULL_IMAGE ./nginx
+          echo "📤 Pushing NGINX image..."
+          docker push $NGINX_FULL_IMAGE
+
+      - name: Update ECS service with new images
         run: |
           CLUSTER_NAME=CMS3TestEC2Cluster
           SERVICE_NAME=nodejs-services
-          TASK_FAMILY=nodejs-service-td
-          CONTAINER_NAME=nodejs-container
-          IMAGE_URI=$FULL_IMAGE
+          TASK_FAMILY=nodejs-nginx-task
+          NODEJS_CONTAINER=nodejs-container
+          NGINX_CONTAINER=nginx-container
+          NODEJS_IMAGE=$NODEJS_FULL_IMAGE
+          NGINX_IMAGE=$NGINX_FULL_IMAGE
 
           echo "🔍 Using task family: $TASK_FAMILY"
-          echo "🔍 Updating container: $CONTAINER_NAME"
-          echo "🔍 New image: $IMAGE_URI"
+          echo "🔍 Updating Node.js container: $NODEJS_CONTAINER"
+          echo "🔍 Updating NGINX container: $NGINX_CONTAINER"
 
           # Fetch latest task definition
           TASK_DEF=$(aws ecs describe-task-definition --task-definition $TASK_FAMILY)
 
-          # Replace the container image
+          # Replace container images for both containers
           NEW_TASK_DEF=$(echo "$TASK_DEF" | \
-          jq --arg IMAGE_URI "$IMAGE_URI" --arg NAME "$CONTAINER_NAME" \
-          '.taskDefinition
-          | .containerDefinitions |= map(if .name == $NAME then .image=$IMAGE_URI else . end)
-          | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          jq --arg NODEJS_IMAGE "$NODEJS_IMAGE" \
+             --arg NGINX_IMAGE "$NGINX_IMAGE" \
+             '.taskDefinition
+              | .containerDefinitions |= map(
+                  if .name=="nodejs-container" then .image=$NODEJS_IMAGE
+                  elif .name=="nginx-container" then .image=$NGINX_IMAGE
+                  else . end
+                )
+              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
 
           # Save to file
           echo "$NEW_TASK_DEF" > new-task-def.json
 
-          # Register
+          # Register new task definition
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json file://new-task-def.json \
             | jq -r '.taskDefinition.taskDefinitionArn')
 
+          echo "🔄 Registered new task definition: $NEW_TASK_DEF_ARN"
 
-          # Update ECS service to use new task definition
+          # Update ECS service
           aws ecs update-service \
             --cluster $CLUSTER_NAME \
             --service $SERVICE_NAME \
             --task-definition $NEW_TASK_DEF_ARN \
             --network-configuration "awsvpcConfiguration={subnets=[\"subnet-0aa741e64984c0740\",\"subnet-0685f17332e84ed7b\"],securityGroups=[\"sg-09110da60bd9bde68\"],assignPublicIp=\"DISABLED\"}"
 
-
-          echo "🎉 Deployment triggered. ECS will now pull the new image."
-
+          echo "🎉 Deployment triggered. ECS will now pull the new images."
