@@ -67,7 +67,7 @@ jobs:
           '.taskDefinition
             | .containerDefinitions |= map(
                 if .name=="nodejs-container" then .image=$NODE
-                elif .name=="nginx-container" then .image=$NING
+                elif .name=="nginx-container" then .image=$NGIN
                 else . end
               )
             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)'
