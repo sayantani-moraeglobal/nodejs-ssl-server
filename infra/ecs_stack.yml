@@ -108,8 +108,8 @@ Resources:
         - Name: nodejs
           Image: !Sub 722136401996.dkr.ecr.${RegionName}.amazonaws.com/example-nodejs:latest
           Essential: true
-          Memory: 512
-          Cpu: 256
+          Memory: 1024
+          Cpu: 512
           PortMappings:
             - ContainerPort: 8080
               HostPort: 8080
@@ -124,6 +124,7 @@ Resources:
 
   NodejsService:
     Type: AWS::ECS::Service
+    DependsOn: ECSClusterCPAssociation
     Properties:
       Cluster: !Ref CMS3TestEC2Cluster
       ServiceName: NodejsService
