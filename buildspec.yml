@@ -90,7 +90,8 @@ phases:
             --parameter-overrides \
               RegionName="$AWS_REGION" \
               KeyName="$KEY_NAME" \
-              ECSInstanceRole=$ECS_INSTANCE_ROLE
+              ECSInstanceRole="$ECS_INSTANCE_ROLE" \
+              ECSTaskExecutionRoleArn="$ECS_TASK_EXECUTION_ROLE_ARN"
         fi
 
       - echo "✅ Deployment completed in $AWS_REGION"
