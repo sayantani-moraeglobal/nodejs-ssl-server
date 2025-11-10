@@ -4,24 +4,20 @@ Description: ECS Cluster on EC2 with ALB Integration (Instance Target Type)
 Parameters:
   RegionName:
     Type: String
-    Description: Region name used in export names (e.g., us-east-1, ap-south-1)
-
+    Description: Region name used in ECR image
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
-    Description: EC2 key pair name for SSH access
-
   ECSAMI:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
-
   ECSInstanceRole:
     Type: String
-    Description: IAM Role Name for ECS instances
 
 Resources:
+
   CMS3TestEC2Cluster:
     Type: AWS::ECS::Cluster
-    Properties: 
+    Properties:
       ClusterName: CMS3TestEC2Cluster
 
   EC2InstanceSecurityGroup:
@@ -30,9 +26,10 @@ Resources:
       GroupDescription: Allow traffic from ALB and SSH
       VpcId: !ImportValue CMS3VPC
       SecurityGroupIngress:
+        # ✅ Allow all ports from ALB SG (because bridge mode can vary host port mapping)
         - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
+          FromPort: 0
+          ToPort: 65535
           SourceSecurityGroupId: !ImportValue CMS3ALBSecurityGroup
         - IpProtocol: tcp
           FromPort: 22
@@ -54,20 +51,6 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
 
-  # ECSInstanceRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     RoleName: ECSInstanceRole
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: ec2.amazonaws.com
-  #           Action: sts:AssumeRole
-  #     ManagedPolicyArns:
-  #       - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
-
   ECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -82,20 +65,21 @@ Resources:
         ImageId: !Ref ECSAMI
         IamInstanceProfile:
           Name: !Ref ECSInstanceProfile
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !Ref EC2InstanceSecurityGroup
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
             echo ECS_CLUSTER=CMS3TestEC2Cluster >> /etc/ecs/ecs.config
-        SecurityGroupIds:
-          - !Ref EC2InstanceSecurityGroup
-        KeyName: !Ref KeyName
 
   CMS3ECSAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: ECSLaunchTemplate
     Properties:
-      MinSize: '1'
-      MaxSize: '2'
-      DesiredCapacity: '1'
+      MinSize: "1"
+      MaxSize: "2"
+      DesiredCapacity: "1"
       VPCZoneIdentifier:
         - !ImportValue CMS3PrivateSubnet1
         - !ImportValue CMS3PrivateSubnet2
@@ -103,22 +87,41 @@ Resources:
         LaunchTemplateId: !Ref ECSLaunchTemplate
         Version: !GetAtt ECSLaunchTemplate.LatestVersionNumber
 
+  # ✅ Attach ASG to ECS cluster using Capacity Provider
+  ECSCapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: !Ref CMS3ECSAutoScalingGroup
+        ManagedScaling:
+          Status: ENABLED
+          TargetCapacity: 80
+
+  ECSClusterCPAssociation:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Properties:
+      Cluster: !Ref CMS3TestEC2Cluster
+      CapacityProviders:
+        - !Ref ECSCapacityProvider
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: !Ref ECSCapacityProvider
+          Weight: 1
+
   NodejsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: nodejs-service-td
-      RequiresCompatibilities:
-        - EC2
-      NetworkMode: bridge  # ✅ Use bridge mode for EC2 with instance target group
+      RequiresCompatibilities: [EC2]
+      NetworkMode: bridge
       Cpu: 1024
       Memory: 3072
       ExecutionRoleArn: !GetAtt ecsTaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: nodejs
           Image: !Sub 722136401996.dkr.ecr.${RegionName}.amazonaws.com/example-nodejs:latest
+          Essential: true
           Memory: 512
           Cpu: 256
-          Essential: true
           PortMappings:
             - ContainerPort: 8080
               HostPort: 8080
@@ -128,7 +131,7 @@ Resources:
             Options:
               awslogs-create-group: "true"
               awslogs-group: "/ecs/cms3-ecs-ec2-loggroup"
-              awslogs-region: !Ref "AWS::Region"
+              awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: "ecs"
 
   NodejsService:
@@ -138,6 +141,7 @@ Resources:
       ServiceName: NodejsService
       LaunchType: EC2
       DesiredCount: 1
+      HealthCheckGracePeriodSeconds: 60   # ✅ Give time for container to boot
       LoadBalancers:
         - ContainerName: nodejs
           ContainerPort: 8080
