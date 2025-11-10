@@ -12,6 +12,9 @@ Parameters:
     Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
   ECSInstanceRole:
     Type: String
+  ECSTaskExecutionRoleArn:
+    Type: String
+    Description: Existing ECS Task Execution Role ARN   # ✅ added
 
 Resources:
 
@@ -35,21 +38,6 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
-
-  ecsTaskExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: ecsTaskExecutionRole
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
 
   ECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -115,7 +103,7 @@ Resources:
       NetworkMode: bridge
       Cpu: 1024
       Memory: 3072
-      ExecutionRoleArn: !GetAtt ecsTaskExecutionRole.Arn
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
       ContainerDefinitions:
         - Name: nodejs
           Image: !Sub 722136401996.dkr.ecr.${RegionName}.amazonaws.com/example-nodejs:latest
