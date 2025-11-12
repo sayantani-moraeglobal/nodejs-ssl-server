@@ -1,10 +1,18 @@
-FROM nginx:stable-alpine
+# Use official NGINX image
+FROM nginx:alpine
 
-# Copy custom Nginx config
+# Create directory for certs
+RUN mkdir -p /etc/nginx/certs
+
+# Copy self-signed certificates
+COPY certs/selfsigned.crt /etc/nginx/certs/selfsigned.crt
+COPY certs/selfsigned.key /etc/nginx/certs/selfsigned.key
+
+# Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose HTTP port (because ALB sends HTTP to NGINX)
-EXPOSE 80
+# Expose HTTPS port
+EXPOSE 443
 
-# Run Nginx in foreground
+# Start nginx
 CMD ["nginx", "-g", "daemon off;"]
