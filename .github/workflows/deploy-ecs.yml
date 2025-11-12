@@ -55,7 +55,7 @@ jobs:
       - name: Update ECS service with new images
         run: |
           CLUSTER_NAME=CMS3TestEC2Cluster
-          SERVICE_NAME=nodejs-nginx-services
+          SERVICE_NAME=nodejs-nginx-service
           TASK_FAMILY=nodejs-nginx-task
 
           echo "🔍 Pulling latest task definition..."
